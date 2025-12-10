@@ -72,18 +72,37 @@ export const saveSubmission = async (respondent: RespondentData, answers: Answer
 
   let saveResult: SaveResult = { savedToCloud: false, savedLocal: false };
 
-  // 1. Try Firebase (Cloud) - PRIMARY
+  // Helper to create a promise with timeout
+  const withTimeout = (promise: Promise<any>, ms: number, errorMsg: string) => {
+      let timer: any;
+      const timeout = new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error(errorMsg)), ms);
+      });
+      return Promise.race([
+          promise.then(res => { clearTimeout(timer); return res; }),
+          timeout
+      ]);
+  }
+
+  // 1. Try Firebase (Cloud) - PRIMARY with RETRY Logic
   try {
-    // Increased timeout to 20s for slower mobile connections
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Tempo limite de conexão excedido (20s)')), 20000));
-    
-    // Explicitly using collection ref
     const colRef = collection(db, COLLECTION_NAME);
-    const addPromise = addDoc(colRef, submissionData);
     
-    await Promise.race([addPromise, timeout]);
-    
-    saveResult.savedToCloud = true;
+    try {
+        // Attempt 1: 15 seconds
+        await withTimeout(addDoc(colRef, submissionData), 15000, "Tentativa 1 excedida");
+        saveResult.savedToCloud = true;
+    } catch (firstErr) {
+        console.warn("Primeira tentativa de salvar falhou, tentando novamente...", firstErr);
+        
+        // Attempt 2: 30 seconds (Retry)
+        // Wait 1 second before retrying to let network stabilize
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        await withTimeout(addDoc(colRef, submissionData), 30000, "Tempo limite de conexão excedido (30s)");
+        saveResult.savedToCloud = true;
+    }
+
     console.log("SUCESSO: Dados salvos no Firebase.");
   } catch (e: any) {
     console.error("ERRO FIREBASE:", e);
