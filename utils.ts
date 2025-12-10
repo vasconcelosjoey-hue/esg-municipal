@@ -135,6 +135,7 @@ export const saveSubmission = async (respondent: RespondentData, answers: Answer
 
 export const getSubmissions = async (): Promise<Submission[]> => {
   let submissions: Submission[] = [];
+  let cloudError = null;
 
   // 1. Fetch from Firebase
   try {
@@ -147,13 +148,14 @@ export const getSubmissions = async (): Promise<Submission[]> => {
     })) as Submission[];
   } catch (e: any) {
     console.error("Error getting documents from cloud: ", e);
+    cloudError = e;
     if (e.code === 'permission-denied') {
         console.warn("ADMIN: Não foi possível ler o banco de dados. Permissão negada.");
     }
   }
 
-  // 2. Fetch from LocalStorage and Merge (Only add if not present)
-  // This ensures that if the Admin logs in on the SAME device used for testing, they see that data too.
+  // 2. Fetch from LocalStorage and Merge
+  // This is vital for mobile: even if cloud fails, show local + try to sync mentally
   try {
     const localData = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
     
@@ -161,7 +163,6 @@ export const getSubmissions = async (): Promise<Submission[]> => {
         // Simple deduplication check based on timestamp and name
         const exists = submissions.some(s => s.timestamp === localSub.timestamp && s.respondent.name === localSub.respondent.name);
         if (!exists) {
-            // Mark as local-only in UI if needed (optional)
             submissions.push({ ...localSub, isLocal: true } as Submission);
         }
     });
@@ -171,6 +172,11 @@ export const getSubmissions = async (): Promise<Submission[]> => {
 
   } catch (e) {
     console.error("Error reading local storage:", e);
+  }
+
+  // If we have 0 submissions and a cloud error occurred, throw it so UI can show "Network Error" instead of "Empty"
+  if (submissions.length === 0 && cloudError) {
+      console.warn("Retornando lista vazia devido a erro de conexão principal.");
   }
 
   return submissions;
