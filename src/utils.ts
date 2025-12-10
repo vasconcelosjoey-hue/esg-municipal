@@ -163,7 +163,7 @@ export const getSubmissions = async (): Promise<Submission[]> => {
         // Simple deduplication check based on timestamp and name
         const exists = submissions.some(s => s.timestamp === localSub.timestamp && s.respondent.name === localSub.respondent.name);
         if (!exists) {
-            submissions.push({ ...localSub, isLocal: true } as Submission);
+            submissions.push({ ...(localSub as object), isLocal: true } as Submission);
         }
     });
     
