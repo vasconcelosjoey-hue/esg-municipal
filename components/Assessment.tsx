@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { CATEGORIES } from '../constants';
 import { AnswerValue, AnswersState } from '../types';
 
@@ -11,6 +11,8 @@ interface Props {
 
 const Assessment: React.FC<Props> = ({ answers, onAnswerChange, onFinish, isSaving = false }) => {
   const [missingIds, setMissingIds] = useState<string[]>([]);
+  // Use a ref to store all question IDs in order for auto-scroll
+  const allQuestionIds = useRef<string[]>(CATEGORIES.flatMap(c => c.questions.map(q => q.id)));
 
   // Calculate total progress
   const totalQuestions = CATEGORIES.reduce((acc, cat) => acc + cat.questions.length, 0);
@@ -25,6 +27,29 @@ const Assessment: React.FC<Props> = ({ answers, onAnswerChange, onFinish, isSavi
   // Global question counter for sequential numbering
   let globalQuestionCounter = 0;
 
+  const handleOptionSelect = (questionId: string, value: AnswerValue) => {
+      onAnswerChange(questionId, value);
+      
+      // Remove from missing list if present
+      if(missingIds.includes(questionId)) {
+          setMissingIds(prev => prev.filter(id => id !== questionId));
+      }
+
+      // Auto-scroll logic
+      const currentIndex = allQuestionIds.current.indexOf(questionId);
+      if (currentIndex !== -1 && currentIndex < allQuestionIds.current.length - 1) {
+          const nextQuestionId = allQuestionIds.current[currentIndex + 1];
+          // Small delay to allow visual feedback of selection before scrolling
+          setTimeout(() => {
+              const nextEl = document.getElementById(`question-${nextQuestionId}`);
+              if (nextEl) {
+                  // Scroll with offset to account for sticky headers if any, or just center
+                  nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+          }, 400); 
+      }
+  };
+
   const handleFinishAttempt = () => {
     const missing: string[] = [];
     CATEGORIES.forEach(cat => {
@@ -38,7 +63,6 @@ const Assessment: React.FC<Props> = ({ answers, onAnswerChange, onFinish, isSavi
     if (missing.length > 0) {
       setMissingIds(missing);
       
-      // Explicit alert for mobile users who might not see the scroll
       alert(`Atenção: Você ainda precisa responder ${missing.length} pergunta(s) antes de finalizar.`);
 
       // Scroll to first missing
@@ -162,29 +186,52 @@ const Assessment: React.FC<Props> = ({ answers, onAnswerChange, onFinish, isSavi
                       </div>
                       <div className="flex flex-wrap gap-2 md:min-w-[300px] justify-end ml-10 md:ml-0">
                         {[
-                        { label: 'SIM', value: AnswerValue.YES, color: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' },
-                        { label: 'PARCIAL', value: AnswerValue.PARTIAL, color: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' },
-                        { label: 'NÃO', value: AnswerValue.NO, color: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' },
-                        { label: 'N/A', value: AnswerValue.NA, color: 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100' },
-                        ].map((option) => (
-                        <button
-                            key={option.value}
-                            onClick={() => {
-                                onAnswerChange(q.id, option.value);
-                                if(missingIds.includes(q.id)) {
-                                    setMissingIds(prev => prev.filter(id => id !== q.id));
-                                }
-                            }}
-                            className={`
-                            px-4 py-3 rounded-xl text-sm font-bold border transition-all transform active:scale-95 flex-1 md:flex-none text-center
-                            ${answers[q.id] === option.value 
-                                ? 'ring-2 ring-offset-1 ring-emerald-500 shadow-md ' + option.color.replace('50', '600').replace('text-', 'text-white bg-').replace('border-', 'border-transparent ') 
-                                : option.color}
-                            `}
-                        >
-                            {option.label}
-                        </button>
-                        ))}
+                          // DEFINITION OF BUTTON COLORS
+                          // SIM: Green Background, White Text
+                          { 
+                              label: 'SIM', 
+                              value: AnswerValue.YES, 
+                              baseClass: 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100',
+                              activeClass: 'bg-emerald-600 text-white border-emerald-600 ring-emerald-300' 
+                          },
+                          // PARTIAL: Yellow Background, BLACK Text
+                          { 
+                              label: 'PARCIAL', 
+                              value: AnswerValue.PARTIAL, 
+                              baseClass: 'bg-amber-50 text-slate-900 border-amber-200 hover:bg-amber-100', // Changed text to slate-900 (blackish)
+                              activeClass: 'bg-amber-300 text-black border-amber-400 ring-amber-200' // Darker yellow bg, black text
+                          },
+                          // NO: Red Background, BLACK Text
+                          { 
+                              label: 'NÃO', 
+                              value: AnswerValue.NO, 
+                              baseClass: 'bg-red-50 text-slate-900 border-red-200 hover:bg-red-100', // Changed text to slate-900
+                              activeClass: 'bg-red-300 text-black border-red-400 ring-red-200' // Darker red bg, black text
+                          },
+                          // NA: Grey Background, BLACK Text
+                          { 
+                              label: 'N/A', 
+                              value: AnswerValue.NA, 
+                              baseClass: 'bg-slate-50 text-slate-900 border-slate-200 hover:bg-slate-100', // Changed text to slate-900
+                              activeClass: 'bg-slate-300 text-black border-slate-400 ring-slate-200' // Darker grey bg, black text
+                          },
+                        ].map((option) => {
+                           const isActive = answers[q.id] === option.value;
+                           return (
+                            <button
+                                key={option.value}
+                                onClick={() => handleOptionSelect(q.id, option.value)}
+                                className={`
+                                px-4 py-3 rounded-xl text-sm font-bold border transition-all transform active:scale-95 flex-1 md:flex-none text-center shadow-sm
+                                ${isActive 
+                                    ? `ring-2 ring-offset-1 shadow-md scale-105 ${option.activeClass}` 
+                                    : option.baseClass}
+                                `}
+                            >
+                                {option.label}
+                            </button>
+                           );
+                        })}
                       </div>
                   </div>
                 </div>

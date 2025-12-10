@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore, CACHE_SIZE_UNLIMITED } from "firebase/firestore";
 
 // Configuration provided by the user
 const firebaseConfig = {
@@ -13,6 +13,11 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+
+// Initialize Firestore with settings optimized for mobile networks/stability
+// experimentalForceLongPolling helps avoid websocket issues on some 4G/5G networks
+const db = initializeFirestore(app, {
+    experimentalForceLongPolling: true,
+});
 
 export { db };
