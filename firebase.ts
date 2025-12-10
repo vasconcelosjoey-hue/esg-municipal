@@ -1,0 +1,18 @@
+import { initializeApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
+
+// Configuration provided by the user
+const firebaseConfig = {
+  apiKey: "AIzaSyBkae_xIIVml6KqZ7eZyF3zC7HcjRac4Fc",
+  authDomain: "esg-municipal.firebaseapp.com",
+  projectId: "esg-municipal",
+  storageBucket: "esg-municipal.firebasestorage.app",
+  messagingSenderId: "873938470656",
+  appId: "1:873938470656:web:8af3c94608afd87e5755e5"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+export { db };

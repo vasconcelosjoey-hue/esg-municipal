@@ -117,6 +117,7 @@ const App: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleAnswerChange = (questionId: string, value: any) => {
     setAnswers(prev => ({ ...prev, [questionId]: value }));
@@ -142,10 +143,17 @@ const App: React.FC = () => {
     setView(View.ASSESSMENT);
   };
 
-  const handleFinishAssessment = () => {
+  const handleFinishAssessment = async () => {
     if (result && respondentData) {
-      saveSubmission(respondentData, answers, result);
-      setView(View.SUCCESS);
+      setIsSaving(true);
+      try {
+        await saveSubmission(respondentData, answers, result);
+        setView(View.SUCCESS);
+      } catch (error) {
+        alert("Erro ao salvar diagnóstico. Tente novamente.");
+      } finally {
+        setIsSaving(false);
+      }
     }
   };
 
@@ -360,27 +368,36 @@ const App: React.FC = () => {
 
         {view === View.SUCCESS && (
           <div className="text-center py-24 animate-fade-in bg-white/50 backdrop-blur-lg rounded-3xl mx-4 my-8 shadow-xl max-w-4xl lg:mx-auto border border-emerald-100">
-            <div className="mx-auto flex items-center justify-center h-32 w-32 rounded-full bg-emerald-100 mb-8 animate-bounce">
-              <svg className="h-16 w-16 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <h2 className="text-4xl font-black text-slate-900 mb-4 tracking-tight">Relatório Enviado!</h2>
-            <p className="text-xl text-slate-600 max-w-2xl mx-auto mb-10 leading-relaxed">
-              Obrigado, <span className="font-bold text-emerald-700 bg-emerald-50 px-2 rounded">{respondentData?.name}</span>. <br/>
-              Suas respostas foram registradas com segurança no banco de dados ESG Municipal.
-            </p>
-            <button 
-              onClick={() => {
-                 setAnswers({});
-                 setRespondentData(null);
-                 setResult(null);
-                 setView(View.HOME);
-              }}
-              className="px-8 py-3 rounded-full bg-slate-900 text-white font-bold hover:bg-slate-800 transition-colors shadow-lg"
-            >
-              Voltar ao Início
-            </button>
+            {isSaving ? (
+                 <div className="flex flex-col items-center justify-center h-32 mb-8">
+                     <div className="w-16 h-16 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
+                     <p className="mt-4 text-emerald-800 font-bold">Salvando...</p>
+                 </div>
+            ) : (
+                <>
+                <div className="mx-auto flex items-center justify-center h-32 w-32 rounded-full bg-emerald-100 mb-8 animate-bounce">
+                <svg className="h-16 w-16 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+                </div>
+                <h2 className="text-4xl font-black text-slate-900 mb-4 tracking-tight">Relatório Enviado!</h2>
+                <p className="text-xl text-slate-600 max-w-2xl mx-auto mb-10 leading-relaxed">
+                Obrigado, <span className="font-bold text-emerald-700 bg-emerald-50 px-2 rounded">{respondentData?.name}</span>. <br/>
+                Suas respostas foram registradas com segurança no banco de dados ESG Municipal.
+                </p>
+                <button 
+                onClick={() => {
+                    setAnswers({});
+                    setRespondentData(null);
+                    setResult(null);
+                    setView(View.HOME);
+                }}
+                className="px-8 py-3 rounded-full bg-slate-900 text-white font-bold hover:bg-slate-800 transition-colors shadow-lg"
+                >
+                Voltar ao Início
+                </button>
+                </>
+            )}
           </div>
         )}
 

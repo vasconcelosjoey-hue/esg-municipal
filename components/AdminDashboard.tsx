@@ -1,13 +1,29 @@
-import React, { useMemo, useState } from 'react';
-import { getSubmissions, calculateScore, generateFullActionPlan } from '../utils';
+import React, { useMemo, useState, useEffect } from 'react';
+import { getSubmissions, generateFullActionPlan } from '../utils';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts';
 import { CATEGORIES } from '../constants';
-import { Submission, AnswersState, TimeFrame, ActionPlanItem, AssessmentResult } from '../types';
+import { Submission, TimeFrame, ActionPlanItem, AssessmentResult } from '../types';
 import Dashboard from './Dashboard';
 
 const AdminDashboard: React.FC = () => {
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
-  const submissions = useMemo(() => getSubmissions(), []);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch data asynchronously on mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const data = await getSubmissions();
+        setSubmissions(data);
+      } catch (error) {
+        console.error("Failed to fetch submissions", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   // --- AGGREGATE LOGIC ---
   const aggregateResult: AssessmentResult | null = useMemo(() => {
@@ -84,6 +100,15 @@ const AdminDashboard: React.FC = () => {
 
   // --- RENDER ---
 
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh]">
+        <div className="w-16 h-16 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
+        <p className="mt-4 text-emerald-800 font-bold animate-pulse">Sincronizando dados...</p>
+      </div>
+    );
+  }
+
   // 1. If viewing a specific submission
   if (selectedSubmission) {
     return (
@@ -109,7 +134,7 @@ const AdminDashboard: React.FC = () => {
     return (
       <div className="text-center py-20 bg-white rounded-xl shadow-sm border border-slate-200">
         <div className="text-6xl mb-4">📂</div>
-        <h2 className="text-2xl font-bold text-slate-700">Ainda não há dados.</h2>
+        <h2 className="text-2xl font-bold text-slate-700">Ainda não há dados na nuvem.</h2>
         <p className="text-slate-500">O painel será ativado assim que o primeiro diagnóstico for enviado.</p>
       </div>
     );

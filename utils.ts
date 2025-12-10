@@ -1,5 +1,7 @@
 import { AnswersState, AnswerValue, AssessmentResult, MaturityLevel, ActionPlanItem, CategoryData, Submission, RespondentData, TimeFrame } from './types';
 import { CATEGORIES } from './constants';
+import { db } from './firebase';
+import { collection, addDoc, getDocs, query, orderBy } from 'firebase/firestore';
 
 export const calculateScore = (answers: AnswersState): AssessmentResult => {
   let totalScore = 0;
@@ -33,7 +35,6 @@ export const calculateScore = (answers: AnswersState): AssessmentResult => {
 
   const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
 
-  // Atualizado conforme solicitação:
   // 0-39% Crítico (Vermelho)
   // 40-79% Em Desenvolvimento (Amarelo)
   // 80-100% Excelente (Verde)
@@ -51,33 +52,42 @@ export const calculateScore = (answers: AnswersState): AssessmentResult => {
   };
 };
 
-// --- DATA PERSISTENCE (MOCK DB) ---
-const STORAGE_KEY = 'esg_municipal_submissions';
+// --- DATA PERSISTENCE (FIREBASE FIRESTORE) ---
+const COLLECTION_NAME = 'submissions';
 
-export const saveSubmission = (respondent: RespondentData, answers: AnswersState, result: AssessmentResult) => {
-  const submission: Submission = {
-    id: crypto.randomUUID(),
-    timestamp: new Date().toISOString(),
-    respondent,
-    answers,
-    result
-  };
-  
-  const existing = getSubmissions();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([...existing, submission]));
+export const saveSubmission = async (respondent: RespondentData, answers: AnswersState, result: AssessmentResult): Promise<void> => {
+  try {
+    const submissionData = {
+      timestamp: new Date().toISOString(),
+      respondent,
+      answers,
+      result
+    };
+    await addDoc(collection(db, COLLECTION_NAME), submissionData);
+  } catch (e) {
+    console.error("Error adding document: ", e);
+    throw e; // Propagate error to UI
+  }
 };
 
-export const getSubmissions = (): Submission[] => {
-  const data = localStorage.getItem(STORAGE_KEY);
-  return data ? JSON.parse(data) : [];
+export const getSubmissions = async (): Promise<Submission[]> => {
+  try {
+    const q = query(collection(db, COLLECTION_NAME), orderBy("timestamp", "desc"));
+    const querySnapshot = await getDocs(q);
+    
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Submission[];
+  } catch (e) {
+    console.error("Error getting documents: ", e);
+    return [];
+  }
 };
 
 
 // --- DYNAMIC ACTION PLAN GENERATOR ---
 
-// Templates for generating actions based on maturity level and timeline
-// This allows for a complete roadmap (1 month to 5 years) regardless of the current status,
-// but tailored to the specific context (Emergency vs Expansion vs Innovation).
 const ACTION_TEMPLATES: Record<'CRITICAL' | 'REGULAR' | 'EXCELLENT', Record<TimeFrame, { title: string, desc: string, priority: 'Alta' | 'Média' | 'Baixa' }>> = {
   CRITICAL: {
     '1 Mês': { 
