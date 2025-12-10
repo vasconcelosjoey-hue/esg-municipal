@@ -12,17 +12,33 @@ const AdminDashboard: React.FC = () => {
 
   // Fetch data asynchronously on mount
   useEffect(() => {
+    let mounted = true;
     const fetchData = async () => {
       try {
         const data = await getSubmissions();
-        setSubmissions(data);
+        if (mounted) {
+          setSubmissions(data);
+          setLoading(false);
+        }
       } catch (error) {
         console.error("Failed to fetch submissions", error);
-      } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
     fetchData();
+
+    // Safety timeout: if firebase hangs, force loading to stop after 10s
+    const timeout = setTimeout(() => {
+       if (mounted && loading) {
+          console.warn("Fetch timed out");
+          setLoading(false);
+       }
+    }, 10000);
+
+    return () => { 
+        mounted = false; 
+        clearTimeout(timeout);
+    };
   }, []);
 
   // --- AGGREGATE LOGIC ---
@@ -136,6 +152,7 @@ const AdminDashboard: React.FC = () => {
         <div className="text-6xl mb-4">📂</div>
         <h2 className="text-2xl font-bold text-slate-700">Ainda não há dados na nuvem.</h2>
         <p className="text-slate-500">O painel será ativado assim que o primeiro diagnóstico for enviado.</p>
+        <p className="text-xs text-slate-400 mt-4 max-w-md mx-auto">Se você acabou de enviar um diagnóstico e ele não apareceu, verifique se as permissões do Firebase (Firestore Rules) estão configuradas para leitura/escrita.</p>
       </div>
     );
   }

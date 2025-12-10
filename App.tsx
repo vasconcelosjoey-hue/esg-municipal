@@ -10,6 +10,7 @@ enum View {
   HOME = 'HOME',
   ASSESSMENT = 'ASSESSMENT',
   SUCCESS = 'SUCCESS',
+  USER_DASHBOARD = 'USER_DASHBOARD',
   ADMIN_LOGIN = 'ADMIN_LOGIN',
   ADMIN_DASHBOARD = 'ADMIN_DASHBOARD'
 }
@@ -149,19 +150,28 @@ const App: React.FC = () => {
   };
 
   const handleFinishAssessment = async () => {
-    if (result && respondentData) {
+    // Force recalculation to ensure data integrity
+    const finalResult = calculateScore(answers);
+    setResult(finalResult);
+
+    if (finalResult && respondentData) {
       setIsSaving(true);
       try {
-        await saveSubmission(respondentData, answers, result);
+        await saveSubmission(respondentData, answers, finalResult);
         setView(View.SUCCESS);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Save failed:", error);
-        alert("Erro ao salvar diagnóstico. Verifique sua conexão e tente novamente.");
+        alert(`Erro ao salvar diagnóstico: ${error.message || 'Erro desconhecido'}. Verifique sua conexão e tente novamente.`);
       } finally {
         setIsSaving(false);
       }
     } else {
-        alert("Houve um erro no processamento dos resultados. Tente novamente.");
+        if (!respondentData) {
+            alert("Erro: Dados de identificação não encontrados. Por favor, reinicie o processo.");
+            setView(View.HOME);
+        } else {
+            alert("Houve um erro no processamento dos resultados. Tente novamente.");
+        }
     }
   };
 
@@ -195,8 +205,8 @@ const App: React.FC = () => {
                  <LeafIcon className="h-5 w-5 md:h-6 md:w-6 text-white" />
               </div>
               <div className="flex flex-col">
-                <span className="text-xl md:text-2xl font-bold tracking-tight leading-none">ESG<span className="text-emerald-600">Muni</span></span>
-                <span className="text-[9px] md:text-[10px] uppercase tracking-[0.2em] text-slate-500 mt-1 hidden sm:block">Sustentabilidade</span>
+                <span className="text-xl md:text-2xl font-bold tracking-tight leading-none">ESG <span className="text-emerald-600">Municipal</span></span>
+                <span className="text-[9px] md:text-[10px] uppercase tracking-[0.2em] text-slate-500 mt-1 hidden sm:block">Etapa Mogi das Cruzes</span>
               </div>
               <span className="ml-2 md:ml-4 text-[9px] sm:text-[10px] bg-emerald-50 text-emerald-700 px-2 sm:px-3 py-1 rounded-full border border-emerald-200 uppercase tracking-widest font-bold whitespace-nowrap hidden lg:block">Mogi das Cruzes/SP</span>
             </div>
@@ -365,6 +375,7 @@ const App: React.FC = () => {
               answers={answers} 
               onAnswerChange={handleAnswerChange} 
               onFinish={handleFinishAssessment}
+              isSaving={isSaving}
             />
           </div>
         )}
@@ -388,19 +399,38 @@ const App: React.FC = () => {
                 Obrigado, <span className="font-bold text-emerald-700 bg-emerald-50 px-2 rounded">{respondentData?.name}</span>. <br/>
                 Suas respostas foram registradas com segurança no banco de dados ESG Municipal.
                 </p>
-                <button 
-                onClick={() => {
-                    setAnswers({});
-                    setRespondentData(null);
-                    setResult(null);
-                    setView(View.HOME);
-                }}
-                className="px-8 py-3 rounded-full bg-slate-900 text-white font-bold hover:bg-slate-800 transition-colors shadow-lg"
-                >
-                Voltar ao Início
-                </button>
+                <div className="flex flex-col sm:flex-row justify-center gap-4 px-4">
+                  <button 
+                  onClick={() => setView(View.USER_DASHBOARD)}
+                  className="px-8 py-4 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black hover:shadow-xl hover:scale-105 transition-all text-lg shadow-lg flex items-center justify-center gap-2"
+                  >
+                     <span>Visualizar Meu Relatório</span>
+                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                  </button>
+                  <button 
+                  onClick={() => {
+                      setAnswers({});
+                      setRespondentData(null);
+                      setResult(null);
+                      setView(View.HOME);
+                  }}
+                  className="px-8 py-4 rounded-full bg-white border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors"
+                  >
+                  Voltar ao Início
+                  </button>
+                </div>
                 </>
             )}
+          </div>
+        )}
+
+        {/* User Dashboard View (Immediate Result) */}
+        {view === View.USER_DASHBOARD && result && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
+             <button onClick={() => setView(View.SUCCESS)} className="mb-4 text-slate-500 hover:text-slate-900 flex items-center gap-2 font-bold no-print group">
+                <span className="group-hover:-translate-x-1 transition-transform">←</span> Voltar
+             </button>
+             <Dashboard result={result} respondentData={respondentData} />
           </div>
         )}
 
