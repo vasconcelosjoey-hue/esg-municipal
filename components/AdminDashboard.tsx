@@ -9,11 +9,13 @@ const AdminDashboard: React.FC = () => {
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  // Fetch data asynchronously on mount
+  // Fetch data asynchronously on mount and refresh
   useEffect(() => {
     let mounted = true;
     const fetchData = async () => {
+      setLoading(true);
       try {
         const data = await getSubmissions();
         if (mounted) {
@@ -27,19 +29,23 @@ const AdminDashboard: React.FC = () => {
     };
     fetchData();
 
-    // Safety timeout: if firebase hangs, force loading to stop after 10s
+    // Safety timeout: if firebase hangs, force loading to stop after 15s
     const timeout = setTimeout(() => {
        if (mounted && loading) {
           console.warn("Fetch timed out");
           setLoading(false);
        }
-    }, 10000);
+    }, 15000);
 
     return () => { 
         mounted = false; 
         clearTimeout(timeout);
     };
-  }, []);
+  }, [refreshKey]);
+
+  const handleRefresh = () => {
+     setRefreshKey(prev => prev + 1);
+  };
 
   // --- AGGREGATE LOGIC ---
   const aggregateResult: AssessmentResult | null = useMemo(() => {
@@ -151,8 +157,13 @@ const AdminDashboard: React.FC = () => {
       <div className="text-center py-20 bg-white rounded-xl shadow-sm border border-slate-200">
         <div className="text-6xl mb-4">📂</div>
         <h2 className="text-2xl font-bold text-slate-700">Ainda não há dados na nuvem.</h2>
-        <p className="text-slate-500">O painel será ativado assim que o primeiro diagnóstico for enviado.</p>
-        <p className="text-xs text-slate-400 mt-4 max-w-md mx-auto">Se você acabou de enviar um diagnóstico e ele não apareceu, verifique se as permissões do Firebase (Firestore Rules) estão configuradas para leitura/escrita.</p>
+        <p className="text-slate-500 mb-6">O painel será ativado assim que o primeiro diagnóstico for enviado.</p>
+        <button 
+            onClick={handleRefresh}
+            className="px-6 py-2 bg-emerald-100 text-emerald-700 rounded-lg font-bold hover:bg-emerald-200 transition-colors"
+        >
+            Verificar Novamente
+        </button>
       </div>
     );
   }
@@ -182,7 +193,7 @@ const AdminDashboard: React.FC = () => {
                     <p className="text-emerald-400 font-medium mt-2 text-lg">Visão estratégica consolidada.</p>
                 </div>
                 
-                <div className="relative z-10 flex gap-6">
+                <div className="relative z-10 flex gap-6 items-center">
                     <div className="text-center px-8 py-4 bg-white/10 rounded-2xl backdrop-blur-sm border border-white/10">
                         <span className="block text-4xl font-black">{submissions.length}</span>
                         <span className="text-xs uppercase tracking-widest opacity-80 font-bold">Diagnósticos</span>
@@ -198,7 +209,16 @@ const AdminDashboard: React.FC = () => {
          </div>
       </div>
 
-      <div className="flex justify-end no-print">
+      <div className="flex justify-end gap-3 no-print">
+        <button 
+            onClick={handleRefresh}
+            className="flex items-center gap-2 bg-white text-emerald-700 border border-emerald-200 px-6 py-4 rounded-xl font-bold transition-all shadow-sm hover:shadow-md hover:bg-emerald-50"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Atualizar Dados
+        </button>
         <button 
             onClick={() => window.print()}
             className="flex items-center gap-3 bg-slate-800 hover:bg-slate-700 text-white px-8 py-4 rounded-xl font-bold transition-all shadow-xl hover:shadow-2xl transform hover:-translate-y-1"
@@ -386,6 +406,9 @@ const AdminDashboard: React.FC = () => {
                                      <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${sub.result.percentage < 40 ? 'bg-red-50 text-red-700 border-red-200' : sub.result.percentage < 80 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
                                          {sub.result.level}
                                      </span>
+                                     {/* Local Badge (Optional) */}
+                                     {/* @ts-ignore */}
+                                     {sub.isLocal && <span className="text-[10px] bg-slate-100 text-slate-500 px-1 rounded border border-slate-200">LOCAL</span>}
                                  </div>
                              </td>
                              <td className="px-10 py-6 no-print">

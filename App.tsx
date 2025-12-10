@@ -156,21 +156,21 @@ const App: React.FC = () => {
     if (finalResult && respondentData) {
       setIsSaving(true);
       
-      // TIMEOUT MECHANISM: Prevents infinite loading loop
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Tempo limite excedido. Verifique sua internet.")), 15000)
-      );
-
       try {
-        // Race between saving and timeout
-        await Promise.race([
-            saveSubmission(respondentData, answers, finalResult),
-            timeoutPromise
-        ]);
-        setView(View.SUCCESS);
+        const { savedToCloud, error } = await saveSubmission(respondentData, answers, finalResult);
+        
+        if (savedToCloud) {
+            setView(View.SUCCESS);
+        } else {
+            // It saved locally (fallback) but failed cloud. Warn the user.
+            alert(`ATENÇÃO: Seus dados foram salvos no seu aparelho, mas NÃO foram enviados para a central (Nuvem).\n\nMotivo: ${error}\n\nO Administrador NÃO conseguirá ver suas respostas. Tente novamente mais tarde com uma conexão melhor.`);
+            // We allow them to see success screen since they did their part, but with the warning above.
+            setView(View.SUCCESS);
+        }
+
       } catch (error: any) {
-        console.error("Save failed:", error);
-        alert(`Não foi possível conectar ao banco de dados: ${error.message || 'Erro desconhecido'}.\n\nPor favor, tente novamente ou verifique sua conexão.`);
+        console.error("Critical Save failed:", error);
+        alert(`Erro crítico: ${error.message}. Tente novamente.`);
       } finally {
         setIsSaving(false);
       }
@@ -203,25 +203,24 @@ const App: React.FC = () => {
         onSubmit={handleModalSubmit} 
       />
 
-      {/* Navbar Responsive Fix */}
+      {/* Navbar Responsive Fix - Using Flex Wrap or shrinking text for very small screens */}
       <nav className="bg-white/90 backdrop-blur-md text-emerald-900 shadow-sm sticky top-0 z-50 no-print border-b border-emerald-100 transition-all duration-300">
-        <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex justify-between h-20 items-center">
             
-            {/* Logo Section - Optimized for Mobile - Condensed to prevent cutting off buttons */}
-            <div className="flex items-center cursor-pointer group shrink-1 min-w-0" onClick={() => setView(View.HOME)}>
+            {/* Logo Section */}
+            <div className="flex items-center cursor-pointer group shrink min-w-0" onClick={() => setView(View.HOME)}>
               <div className="h-8 w-8 md:h-10 md:w-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center mr-2 md:mr-3 shadow-md group-hover:rotate-6 transition-transform shrink-0">
                  <LeafIcon className="h-4 w-4 md:h-6 md:w-6 text-white" />
               </div>
-              <div className="flex flex-col truncate">
+              <div className="flex flex-col truncate pr-2">
                 <span className="text-lg md:text-2xl font-bold tracking-tight leading-none truncate">ESG <span className="text-emerald-600">Municipal</span></span>
-                {/* Hide subtitle on very small screens */}
                 <span className="text-[9px] md:text-[10px] uppercase tracking-[0.2em] text-slate-500 mt-1 hidden sm:block truncate">Etapa Mogi das Cruzes</span>
               </div>
             </div>
 
-            {/* Buttons Section - Always Visible - Reduced padding for mobile */}
-            <div className="flex items-center space-x-2 shrink-0 ml-2">
+            {/* Buttons Section - Optimized for small screens */}
+            <div className="flex items-center gap-2 shrink-0">
               <button 
                 onClick={handleStartAssessment}
                 className={`px-3 py-2 md:px-4 md:py-2 rounded-full text-xs md:text-sm font-bold transition-all shadow-sm hover:shadow-md whitespace-nowrap ${view === View.ASSESSMENT ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 hover:bg-emerald-50 border border-emerald-100'}`}

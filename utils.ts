@@ -52,37 +52,109 @@ export const calculateScore = (answers: AnswersState): AssessmentResult => {
   };
 };
 
-// --- DATA PERSISTENCE (FIREBASE FIRESTORE) ---
+// --- DATA PERSISTENCE ---
 const COLLECTION_NAME = 'submissions';
+const LOCAL_STORAGE_KEY = 'esg_submissions_backup';
 
-export const saveSubmission = async (respondent: RespondentData, answers: AnswersState, result: AssessmentResult): Promise<void> => {
+export interface SaveResult {
+    savedToCloud: boolean;
+    savedLocal: boolean;
+    error?: string;
+}
+
+export const saveSubmission = async (respondent: RespondentData, answers: AnswersState, result: AssessmentResult): Promise<SaveResult> => {
+  const submissionData = {
+    timestamp: new Date().toISOString(),
+    respondent,
+    answers,
+    result
+  };
+
+  let saveResult: SaveResult = { savedToCloud: false, savedLocal: false };
+
+  // 1. Try Firebase (Cloud) - PRIMARY
   try {
-    const submissionData = {
-      timestamp: new Date().toISOString(),
-      respondent,
-      answers,
-      result
-    };
-    await addDoc(collection(db, COLLECTION_NAME), submissionData);
-  } catch (e) {
-    console.error("Error adding document: ", e);
-    throw e; // Propagate error to UI
+    // Increased timeout to 20s for slower mobile connections
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Tempo limite de conexão excedido (20s)')), 20000));
+    
+    // Explicitly using collection ref
+    const colRef = collection(db, COLLECTION_NAME);
+    const addPromise = addDoc(colRef, submissionData);
+    
+    await Promise.race([addPromise, timeout]);
+    
+    saveResult.savedToCloud = true;
+    console.log("SUCESSO: Dados salvos no Firebase.");
+  } catch (e: any) {
+    console.error("ERRO FIREBASE:", e);
+    
+    // Check for Permission Denied (Common issue)
+    if (e.code === 'permission-denied') {
+        saveResult.error = "Permissão negada. Verifique as 'Firestore Rules' no console do Firebase.";
+    } else {
+        saveResult.error = e.message || "Erro de conexão com o banco de dados.";
+    }
   }
+
+  // 2. Always Save to LocalStorage (Backup)
+  try {
+    const existing = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+    existing.push({ 
+        id: `local-${Date.now()}`, 
+        ...submissionData,
+        _synced: saveResult.savedToCloud 
+    });
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(existing));
+    saveResult.savedLocal = true;
+    console.log("BACKUP: Dados salvos localmente.");
+  } catch (e) {
+    console.error("ERRO LOCAL STORAGE:", e);
+  }
+
+  return saveResult;
 };
 
 export const getSubmissions = async (): Promise<Submission[]> => {
+  let submissions: Submission[] = [];
+
+  // 1. Fetch from Firebase
   try {
     const q = query(collection(db, COLLECTION_NAME), orderBy("timestamp", "desc"));
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => ({
+    submissions = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as Submission[];
-  } catch (e) {
-    console.error("Error getting documents: ", e);
-    return [];
+  } catch (e: any) {
+    console.error("Error getting documents from cloud: ", e);
+    if (e.code === 'permission-denied') {
+        console.warn("ADMIN: Não foi possível ler o banco de dados. Permissão negada.");
+    }
   }
+
+  // 2. Fetch from LocalStorage and Merge (Only add if not present)
+  // This ensures that if the Admin logs in on the SAME device used for testing, they see that data too.
+  try {
+    const localData = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+    
+    localData.forEach((localSub: any) => {
+        // Simple deduplication check based on timestamp and name
+        const exists = submissions.some(s => s.timestamp === localSub.timestamp && s.respondent.name === localSub.respondent.name);
+        if (!exists) {
+            // Mark as local-only in UI if needed (optional)
+            submissions.push({ ...localSub, isLocal: true } as Submission);
+        }
+    });
+    
+    // Re-sort combined list
+    submissions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  } catch (e) {
+    console.error("Error reading local storage:", e);
+  }
+
+  return submissions;
 };
 
 
