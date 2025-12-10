@@ -1,0 +1,435 @@
+import React, { useState, useEffect } from 'react';
+import { CATEGORIES } from './constants';
+import { AnswersState, AssessmentResult, RespondentData } from './types';
+import { calculateScore, saveSubmission } from './utils';
+import Assessment from './components/Assessment';
+import Dashboard from './components/Dashboard'; // Keeping this for individual components usage
+import AdminDashboard from './components/AdminDashboard';
+
+enum View {
+  HOME = 'HOME',
+  ASSESSMENT = 'ASSESSMENT',
+  SUCCESS = 'SUCCESS',
+  ADMIN_LOGIN = 'ADMIN_LOGIN',
+  ADMIN_DASHBOARD = 'ADMIN_DASHBOARD'
+}
+
+// Modal Component for Respondent Data
+const RespondentModal: React.FC<{ 
+  isOpen: boolean; 
+  onClose: () => void; 
+  onSubmit: (data: RespondentData) => void; 
+}> = ({ isOpen, onClose, onSubmit }) => {
+  const [name, setName] = useState('');
+  const [sector, setSector] = useState('');
+  const [error, setError] = useState('');
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!name.trim() || !sector.trim()) {
+      setError('Por favor, preencha todos os campos.');
+      return;
+    }
+    onSubmit({ name, sector });
+    setError('');
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[100] p-4 animate-fade-in backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md border border-slate-200 relative overflow-hidden">
+        {/* Decorative background element inside modal */}
+        <div className="absolute -top-10 -right-10 w-32 h-32 bg-emerald-100 rounded-full blur-2xl opacity-50"></div>
+        
+        <div className="text-center mb-8 relative z-10">
+          <div className="mx-auto h-16 w-16 flex items-center justify-center rounded-full bg-emerald-50 mb-4 shadow-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+          </div>
+          <h3 className="text-2xl font-bold text-slate-900">Identificação</h3>
+          <p className="text-sm text-slate-500 mt-2">Personalize seu relatório ESG.</p>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="space-y-5 relative z-10">
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Nome Completo</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-800 text-white placeholder-slate-400 border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all shadow-inner"
+              placeholder="Ex: João Silva"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Setor / Secretaria</label>
+            <input
+              type="text"
+              value={sector}
+              onChange={(e) => setSector(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-800 text-white placeholder-slate-400 border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all shadow-inner"
+              placeholder="Ex: Meio Ambiente"
+            />
+          </div>
+          {error && <p className="text-red-500 text-sm font-medium bg-red-50 p-2 rounded">{error}</p>}
+
+          <div className="mt-8 flex gap-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-3 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="flex-1 px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl font-bold hover:shadow-lg hover:scale-[1.02] transition-all duration-200"
+            >
+              Iniciar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// Animated SVG Components for Home
+const CloudIcon = ({ className }: { className: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M17.5,19c-0.83,0-1.5-0.67-1.5-1.5c0-0.83,0.67-1.5,1.5-1.5c0.83,0,1.5,0.67,1.5,1.5C19,18.33,18.33,19,17.5,19z M19,6c-3.31,0-6,2.69-6,6c0,3.31,2.69,6,6,6s6-2.69,6-6C25,8.69,22.31,6,19,6z M5.5,11C2.46,11,0,13.46,0,16.5C0,19.54,2.46,22,5.5,22c3.04,0,5.5-2.46,5.5-5.5C11,13.46,8.54,11,5.5,11z" opacity="0.4"/>
+  </svg>
+);
+
+const LeafIcon = ({ className }: { className: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M17,8C8,10,5.9,16.17,3.82,21.34L5.71,22l1-2.3A4.49,4.49,0,0,0,8,20C19,20,22,3,22,3C21,5,14,5.25,9,6.25C4,7.25,2,11.5,2,13.5C2,15.5,3.75,17.25,3.75,17.25C7,8,17,8,17,8Z" />
+  </svg>
+);
+
+const App: React.FC = () => {
+  const [view, setView] = useState<View>(View.HOME);
+  const [answers, setAnswers] = useState<AnswersState>({});
+  const [result, setResult] = useState<AssessmentResult | null>(null);
+  const [respondentData, setRespondentData] = useState<RespondentData | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+
+  const handleAnswerChange = (questionId: string, value: any) => {
+    setAnswers(prev => ({ ...prev, [questionId]: value }));
+  };
+
+  useEffect(() => {
+    if (Object.keys(answers).length > 0) {
+      setResult(calculateScore(answers));
+    }
+  }, [answers]);
+
+  const handleStartAssessment = () => {
+    if (respondentData) {
+      setView(View.ASSESSMENT);
+    } else {
+      setShowModal(true);
+    }
+  };
+
+  const handleModalSubmit = (data: RespondentData) => {
+    setRespondentData(data);
+    setShowModal(false);
+    setView(View.ASSESSMENT);
+  };
+
+  const handleFinishAssessment = () => {
+    if (result && respondentData) {
+      saveSubmission(respondentData, answers, result);
+      setView(View.SUCCESS);
+    }
+  };
+
+  const handleAdminLogin = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (adminPassword === 'esgmogi') {
+      setView(View.ADMIN_DASHBOARD);
+      setLoginError('');
+      setAdminPassword('');
+    } else {
+      setLoginError('Senha incorreta.');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans overflow-x-hidden">
+      <RespondentModal 
+        isOpen={showModal} 
+        onClose={() => setShowModal(false)} 
+        onSubmit={handleModalSubmit} 
+      />
+
+      {/* Navbar */}
+      <nav className="bg-white/90 backdrop-blur-md text-emerald-900 shadow-sm sticky top-0 z-50 no-print border-b border-emerald-100 transition-all duration-300">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-20 items-center">
+            <div className="flex items-center cursor-pointer group" onClick={() => setView(View.HOME)}>
+              <div className="h-10 w-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center mr-3 shadow-md group-hover:rotate-6 transition-transform">
+                 <LeafIcon className="h-6 w-6 text-white" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-2xl font-bold tracking-tight leading-none">ESG<span className="text-emerald-600">Municipal</span></span>
+                <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500 mt-1">Sustentabilidade</span>
+              </div>
+              <span className="ml-4 text-[9px] sm:text-[10px] bg-emerald-50 text-emerald-700 px-2 sm:px-3 py-1 rounded-full border border-emerald-200 uppercase tracking-widest font-bold whitespace-nowrap">Mogi das Cruzes/SP</span>
+            </div>
+            <div className="flex space-x-2 sm:space-x-4">
+              <button 
+                onClick={handleStartAssessment}
+                className={`px-4 py-2 rounded-full text-sm font-bold transition-all shadow-sm hover:shadow-md ${view === View.ASSESSMENT ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 hover:bg-emerald-50 border border-emerald-100'}`}
+              >
+                Diagnóstico
+              </button>
+              <button 
+                onClick={() => setView(View.ADMIN_LOGIN)}
+                className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${[View.ADMIN_LOGIN, View.ADMIN_DASHBOARD].includes(view) ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-emerald-600'}`}
+              >
+                Admin
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <main className="flex-grow w-full mx-auto">
+        {view === View.HOME && (
+          <div className="relative w-full overflow-hidden">
+            {/* Background Animated Blobs */}
+            <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
+              <div className="absolute top-0 left-1/4 w-96 h-96 bg-emerald-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
+              <div className="absolute top-0 right-1/4 w-96 h-96 bg-teal-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
+              <div className="absolute -bottom-32 left-1/3 w-96 h-96 bg-lime-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000"></div>
+            </div>
+
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-24 lg:pt-24 lg:pb-32">
+              <div className="flex flex-col-reverse lg:flex-row items-center gap-12 lg:gap-20">
+                
+                {/* Text Content */}
+                <div className="flex-1 text-center lg:text-left animate-fade-in-up">
+                  <div className="inline-block px-4 py-1.5 rounded-full bg-emerald-100/50 border border-emerald-200 text-emerald-800 text-sm font-bold tracking-wide mb-6 backdrop-blur-sm">
+                    🌿 Gestão Pública Sustentável
+                  </div>
+                  <h1 className="text-4xl sm:text-5xl lg:text-7xl font-extrabold text-slate-900 tracking-tight leading-tight mb-6">
+                    O Futuro é <br/>
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-400">
+                       Verde & Digital
+                    </span>
+                  </h1>
+                  <p className="mt-4 text-xl text-slate-600 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
+                    Transforme Mogi das Cruzes com inteligência de dados. Gere diagnósticos precisos e planos de ação automatizados para elevar o nível de maturidade ESG.
+                  </p>
+                  
+                  <div className="mt-10 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
+                    <button
+                      onClick={handleStartAssessment}
+                      className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-lg shadow-xl shadow-emerald-200 hover:shadow-2xl hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2 group"
+                    >
+                      <span>Iniciar Diagnóstico Agora</span>
+                      <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                    </button>
+                    {/* "Saiba Mais" button removed per request */}
+                  </div>
+
+                  <div className="mt-12 flex items-center justify-center lg:justify-start gap-8 text-slate-400 grayscale opacity-70">
+                    {/* Trust badges placeholders */}
+                    <div className="flex flex-col items-center">
+                       <span className="text-2xl font-black">10+</span>
+                       <span className="text-xs font-bold uppercase">Eixos ESG</span>
+                    </div>
+                    <div className="h-8 w-px bg-slate-300"></div>
+                    <div className="flex flex-col items-center">
+                       <span className="text-2xl font-black">100%</span>
+                       <span className="text-xs font-bold uppercase">Digital</span>
+                    </div>
+                    <div className="h-8 w-px bg-slate-300"></div>
+                    <div className="flex flex-col items-center">
+                       <span className="text-2xl font-black">AI</span>
+                       <span className="text-xs font-bold uppercase">Powered</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Animated Illustration */}
+                <div className="flex-1 w-full max-w-lg lg:max-w-none relative animate-float">
+                  <div className="relative aspect-square">
+                     {/* Abstract Eco City Composition */}
+                     <div className="absolute inset-0 bg-gradient-to-tr from-emerald-100 to-teal-50 rounded-[3rem] transform rotate-3 shadow-2xl"></div>
+                     <div className="absolute inset-0 bg-white/40 backdrop-blur-xl rounded-[3rem] transform -rotate-2 border border-white/50 shadow-lg flex items-center justify-center p-8 overflow-hidden">
+                        
+                        {/* Animated Elements inside the card */}
+                        <div className="relative w-full h-full">
+                           {/* Sun */}
+                           <div className="absolute top-0 right-0 w-20 h-20 bg-yellow-400 rounded-full opacity-20 blur-xl animate-pulse"></div>
+                           
+                           {/* Chart */}
+                           <div className="absolute bottom-10 left-4 w-3/4 h-32 flex items-end gap-2 z-10">
+                              <div className="w-1/4 h-[40%] bg-emerald-200 rounded-t-lg animate-pulse"></div>
+                              <div className="w-1/4 h-[60%] bg-emerald-300 rounded-t-lg animate-pulse animation-delay-2000"></div>
+                              <div className="w-1/4 h-[80%] bg-emerald-400 rounded-t-lg animate-pulse animation-delay-4000"></div>
+                              <div className="w-1/4 h-[100%] bg-emerald-500 rounded-t-lg shadow-lg"></div>
+                           </div>
+
+                           {/* Floating Leaves */}
+                           <LeafIcon className="absolute top-10 left-10 w-12 h-12 text-emerald-500 animate-sway opacity-80" />
+                           <LeafIcon className="absolute top-20 right-20 w-8 h-8 text-teal-500 animate-sway animation-delay-2000 opacity-60" />
+                           <LeafIcon className="absolute bottom-32 right-10 w-10 h-10 text-lime-500 animate-sway animation-delay-4000 opacity-70" />
+
+                           {/* Clouds */}
+                           <CloudIcon className="absolute top-4 left-20 w-24 h-16 text-slate-400 animate-float-delayed" />
+                           <CloudIcon className="absolute bottom-20 right-[-20px] w-32 h-20 text-slate-300 animate-float" />
+                           
+                           {/* Central Text/Badge */}
+                           <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white/90 backdrop-blur-md px-6 py-3 rounded-2xl shadow-xl border border-emerald-100 text-center z-20">
+                              <span className="block text-3xl font-black text-emerald-600">85%</span>
+                              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Meta de Sustentabilidade</span>
+                           </div>
+                        </div>
+                     </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Feature Cards / Levels */}
+              <div className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-8">
+                {[
+                  {
+                    title: "Crítico",
+                    range: "0-39%",
+                    desc: "Ações urgentes necessárias.",
+                    icon: "🚨",
+                    color: "from-red-500 to-rose-600",
+                    bg: "bg-red-50",
+                    border: "border-red-100"
+                  },
+                  {
+                    title: "Em Desenvolvimento",
+                    range: "40-79%",
+                    desc: "Expansão e melhoria contínua.",
+                    icon: "📈",
+                    color: "from-yellow-400 to-amber-500",
+                    bg: "bg-amber-50",
+                    border: "border-amber-100"
+                  },
+                  {
+                    title: "Excelente",
+                    range: "80-100%",
+                    desc: "Liderança e inovação regional.",
+                    icon: "🏆",
+                    color: "from-emerald-500 to-teal-600",
+                    bg: "bg-emerald-50",
+                    border: "border-emerald-100"
+                  }
+                ].map((level, idx) => (
+                  <div key={idx} className={`group relative glass-card p-8 rounded-3xl transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl ${level.bg} ${level.border} border`}>
+                    <div className={`absolute top-0 right-0 -mt-4 -mr-4 w-16 h-16 rounded-2xl bg-gradient-to-br ${level.color} shadow-lg flex items-center justify-center text-3xl transform group-hover:scale-110 transition-transform`}>
+                      {level.icon}
+                    </div>
+                    <div className="mt-4">
+                       <span className="text-sm font-bold uppercase tracking-wider text-slate-500">{level.range}</span>
+                       <h3 className="text-2xl font-bold text-slate-900 mt-1 mb-3">{level.title}</h3>
+                       <p className="text-slate-600 leading-relaxed">{level.desc}</p>
+                    </div>
+                    <div className={`h-1.5 w-full mt-6 rounded-full bg-slate-200 overflow-hidden`}>
+                       <div className={`h-full bg-gradient-to-r ${level.color} w-1/3 group-hover:w-full transition-all duration-700 ease-out`}></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {view === View.ASSESSMENT && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <Assessment 
+              answers={answers} 
+              onAnswerChange={handleAnswerChange} 
+              onFinish={handleFinishAssessment}
+            />
+          </div>
+        )}
+
+        {view === View.SUCCESS && (
+          <div className="text-center py-24 animate-fade-in bg-white/50 backdrop-blur-lg rounded-3xl mx-4 my-8 shadow-xl max-w-4xl lg:mx-auto border border-emerald-100">
+            <div className="mx-auto flex items-center justify-center h-32 w-32 rounded-full bg-emerald-100 mb-8 animate-bounce">
+              <svg className="h-16 w-16 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="text-4xl font-black text-slate-900 mb-4 tracking-tight">Relatório Enviado!</h2>
+            <p className="text-xl text-slate-600 max-w-2xl mx-auto mb-10 leading-relaxed">
+              Obrigado, <span className="font-bold text-emerald-700 bg-emerald-50 px-2 rounded">{respondentData?.name}</span>. <br/>
+              Suas respostas foram registradas com segurança no banco de dados ESG Municipal.
+            </p>
+            <button 
+              onClick={() => {
+                 setAnswers({});
+                 setRespondentData(null);
+                 setResult(null);
+                 setView(View.HOME);
+              }}
+              className="px-8 py-3 rounded-full bg-slate-900 text-white font-bold hover:bg-slate-800 transition-colors shadow-lg"
+            >
+              Voltar ao Início
+            </button>
+          </div>
+        )}
+
+        {view === View.ADMIN_LOGIN && (
+          <div className="flex items-center justify-center min-h-[60vh] px-4">
+            <div className="w-full max-w-md bg-white p-10 rounded-3xl shadow-2xl border border-slate-100 animate-fade-in-up">
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 bg-slate-900 rounded-2xl mx-auto flex items-center justify-center text-white text-2xl mb-4">
+                   🔐
+                </div>
+                <h2 className="text-3xl font-black text-slate-900">Área Restrita</h2>
+                <p className="text-slate-500 mt-2">Acesso exclusivo para administradores.</p>
+              </div>
+               <form onSubmit={handleAdminLogin}>
+                 <input
+                   type="password"
+                   className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all mb-4 font-medium"
+                   placeholder="Digite a senha mestra"
+                   value={adminPassword}
+                   onChange={(e) => setAdminPassword(e.target.value)}
+                 />
+                 {loginError && <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm font-bold text-center mb-4">{loginError}</div>}
+                 <button
+                   type="submit"
+                   className="w-full bg-gradient-to-r from-slate-900 to-slate-800 text-white py-4 rounded-xl font-bold hover:shadow-lg transform active:scale-95 transition-all"
+                 >
+                   Acessar Dashboard
+                 </button>
+               </form>
+            </div>
+          </div>
+        )}
+
+        {view === View.ADMIN_DASHBOARD && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <AdminDashboard />
+          </div>
+        )}
+      </main>
+
+      <footer className="bg-white border-t border-slate-200 text-slate-500 py-12 text-center mt-auto relative overflow-hidden">
+        {/* Footer subtle decoration */}
+        <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-400 via-teal-500 to-lime-400"></div>
+        
+        <p className="font-medium mb-2">&copy; {new Date().getFullYear()} ESG Municipal Diagnostic.</p>
+        <p className="text-[10px] font-black tracking-[0.2em] text-emerald-600 opacity-80 uppercase">POWERED BY JOI.A.</p>
+      </footer>
+    </div>
+  );
+};
+
+export default App;
