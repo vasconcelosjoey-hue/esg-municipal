@@ -10,7 +10,6 @@ enum View {
   HOME = 'HOME',
   ASSESSMENT = 'ASSESSMENT',
   SUCCESS = 'SUCCESS',
-  USER_DASHBOARD = 'USER_DASHBOARD',
   ADMIN_LOGIN = 'ADMIN_LOGIN',
   ADMIN_DASHBOARD = 'ADMIN_DASHBOARD'
 }
@@ -156,12 +155,22 @@ const App: React.FC = () => {
 
     if (finalResult && respondentData) {
       setIsSaving(true);
+      
+      // TIMEOUT MECHANISM: Prevents infinite loading loop
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Tempo limite excedido. Verifique sua internet.")), 15000)
+      );
+
       try {
-        await saveSubmission(respondentData, answers, finalResult);
+        // Race between saving and timeout
+        await Promise.race([
+            saveSubmission(respondentData, answers, finalResult),
+            timeoutPromise
+        ]);
         setView(View.SUCCESS);
       } catch (error: any) {
         console.error("Save failed:", error);
-        alert(`Erro ao salvar diagnóstico: ${error.message || 'Erro desconhecido'}. Verifique sua conexão e tente novamente.`);
+        alert(`Não foi possível conectar ao banco de dados: ${error.message || 'Erro desconhecido'}.\n\nPor favor, tente novamente ou verifique sua conexão.`);
       } finally {
         setIsSaving(false);
       }
@@ -196,23 +205,23 @@ const App: React.FC = () => {
 
       {/* Navbar Responsive Fix */}
       <nav className="bg-white/90 backdrop-blur-md text-emerald-900 shadow-sm sticky top-0 z-50 no-print border-b border-emerald-100 transition-all duration-300">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
           <div className="flex justify-between h-20 items-center">
             
-            {/* Logo Section - Optimized for Mobile */}
-            <div className="flex items-center cursor-pointer group shrink-0" onClick={() => setView(View.HOME)}>
-              <div className="h-9 w-9 md:h-10 md:w-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center mr-2 md:mr-3 shadow-md group-hover:rotate-6 transition-transform">
-                 <LeafIcon className="h-5 w-5 md:h-6 md:w-6 text-white" />
+            {/* Logo Section - Optimized for Mobile - Condensed to prevent cutting off buttons */}
+            <div className="flex items-center cursor-pointer group shrink-1 min-w-0" onClick={() => setView(View.HOME)}>
+              <div className="h-8 w-8 md:h-10 md:w-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center mr-2 md:mr-3 shadow-md group-hover:rotate-6 transition-transform shrink-0">
+                 <LeafIcon className="h-4 w-4 md:h-6 md:w-6 text-white" />
               </div>
-              <div className="flex flex-col">
-                <span className="text-xl md:text-2xl font-bold tracking-tight leading-none">ESG <span className="text-emerald-600">Municipal</span></span>
-                <span className="text-[9px] md:text-[10px] uppercase tracking-[0.2em] text-slate-500 mt-1 hidden sm:block">Etapa Mogi das Cruzes</span>
+              <div className="flex flex-col truncate">
+                <span className="text-lg md:text-2xl font-bold tracking-tight leading-none truncate">ESG <span className="text-emerald-600">Municipal</span></span>
+                {/* Hide subtitle on very small screens */}
+                <span className="text-[9px] md:text-[10px] uppercase tracking-[0.2em] text-slate-500 mt-1 hidden sm:block truncate">Etapa Mogi das Cruzes</span>
               </div>
-              <span className="ml-2 md:ml-4 text-[9px] sm:text-[10px] bg-emerald-50 text-emerald-700 px-2 sm:px-3 py-1 rounded-full border border-emerald-200 uppercase tracking-widest font-bold whitespace-nowrap hidden lg:block">Mogi das Cruzes/SP</span>
             </div>
 
-            {/* Buttons Section - Always Visible */}
-            <div className="flex space-x-2 sm:space-x-4 shrink-0">
+            {/* Buttons Section - Always Visible - Reduced padding for mobile */}
+            <div className="flex items-center space-x-2 shrink-0 ml-2">
               <button 
                 onClick={handleStartAssessment}
                 className={`px-3 py-2 md:px-4 md:py-2 rounded-full text-xs md:text-sm font-bold transition-all shadow-sm hover:shadow-md whitespace-nowrap ${view === View.ASSESSMENT ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 hover:bg-emerald-50 border border-emerald-100'}`}
@@ -400,13 +409,7 @@ const App: React.FC = () => {
                 Suas respostas foram registradas com segurança no banco de dados ESG Municipal.
                 </p>
                 <div className="flex flex-col sm:flex-row justify-center gap-4 px-4">
-                  <button 
-                  onClick={() => setView(View.USER_DASHBOARD)}
-                  className="px-8 py-4 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black hover:shadow-xl hover:scale-105 transition-all text-lg shadow-lg flex items-center justify-center gap-2"
-                  >
-                     <span>Visualizar Meu Relatório</span>
-                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                  </button>
+                  {/* USER_DASHBOARD Button REMOVED - Admin Only Access */}
                   <button 
                   onClick={() => {
                       setAnswers({});
@@ -414,23 +417,13 @@ const App: React.FC = () => {
                       setResult(null);
                       setView(View.HOME);
                   }}
-                  className="px-8 py-4 rounded-full bg-white border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors"
+                  className="px-8 py-4 rounded-full bg-slate-900 text-white font-bold hover:bg-slate-800 transition-colors shadow-lg w-full sm:w-auto"
                   >
                   Voltar ao Início
                   </button>
                 </div>
                 </>
             )}
-          </div>
-        )}
-
-        {/* User Dashboard View (Immediate Result) */}
-        {view === View.USER_DASHBOARD && result && (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
-             <button onClick={() => setView(View.SUCCESS)} className="mb-4 text-slate-500 hover:text-slate-900 flex items-center gap-2 font-bold no-print group">
-                <span className="group-hover:-translate-x-1 transition-transform">←</span> Voltar
-             </button>
-             <Dashboard result={result} respondentData={respondentData} />
           </div>
         )}
 
