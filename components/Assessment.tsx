@@ -36,6 +36,10 @@ const Assessment: React.FC<Props> = ({ answers, onAnswerChange, onFinish }) => {
 
     if (missing.length > 0) {
       setMissingIds(missing);
+      
+      // Explicit alert for mobile users who might not see the scroll
+      alert(`Atenção: Você ainda precisa responder ${missing.length} pergunta(s) antes de finalizar.`);
+
       // Scroll to first missing
       const firstMissingElement = document.getElementById(`question-${missing[0]}`);
       if (firstMissingElement) {

@@ -119,6 +119,11 @@ const App: React.FC = () => {
   const [loginError, setLoginError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  // FIX: Scroll to top whenever the view changes
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [view]);
+
   const handleAnswerChange = (questionId: string, value: any) => {
     setAnswers(prev => ({ ...prev, [questionId]: value }));
   };
@@ -150,10 +155,13 @@ const App: React.FC = () => {
         await saveSubmission(respondentData, answers, result);
         setView(View.SUCCESS);
       } catch (error) {
-        alert("Erro ao salvar diagnóstico. Tente novamente.");
+        console.error("Save failed:", error);
+        alert("Erro ao salvar diagnóstico. Verifique sua conexão e tente novamente.");
       } finally {
         setIsSaving(false);
       }
+    } else {
+        alert("Houve um erro no processamento dos resultados. Tente novamente.");
     }
   };
 
@@ -176,30 +184,34 @@ const App: React.FC = () => {
         onSubmit={handleModalSubmit} 
       />
 
-      {/* Navbar */}
+      {/* Navbar Responsive Fix */}
       <nav className="bg-white/90 backdrop-blur-md text-emerald-900 shadow-sm sticky top-0 z-50 no-print border-b border-emerald-100 transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-20 items-center">
-            <div className="flex items-center cursor-pointer group" onClick={() => setView(View.HOME)}>
-              <div className="h-10 w-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center mr-3 shadow-md group-hover:rotate-6 transition-transform">
-                 <LeafIcon className="h-6 w-6 text-white" />
+            
+            {/* Logo Section - Optimized for Mobile */}
+            <div className="flex items-center cursor-pointer group shrink-0" onClick={() => setView(View.HOME)}>
+              <div className="h-9 w-9 md:h-10 md:w-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center mr-2 md:mr-3 shadow-md group-hover:rotate-6 transition-transform">
+                 <LeafIcon className="h-5 w-5 md:h-6 md:w-6 text-white" />
               </div>
               <div className="flex flex-col">
-                <span className="text-2xl font-bold tracking-tight leading-none">ESG<span className="text-emerald-600">Municipal</span></span>
-                <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500 mt-1">Sustentabilidade</span>
+                <span className="text-xl md:text-2xl font-bold tracking-tight leading-none">ESG<span className="text-emerald-600">Muni</span></span>
+                <span className="text-[9px] md:text-[10px] uppercase tracking-[0.2em] text-slate-500 mt-1 hidden sm:block">Sustentabilidade</span>
               </div>
-              <span className="ml-4 text-[9px] sm:text-[10px] bg-emerald-50 text-emerald-700 px-2 sm:px-3 py-1 rounded-full border border-emerald-200 uppercase tracking-widest font-bold whitespace-nowrap">Mogi das Cruzes/SP</span>
+              <span className="ml-2 md:ml-4 text-[9px] sm:text-[10px] bg-emerald-50 text-emerald-700 px-2 sm:px-3 py-1 rounded-full border border-emerald-200 uppercase tracking-widest font-bold whitespace-nowrap hidden lg:block">Mogi das Cruzes/SP</span>
             </div>
-            <div className="flex space-x-2 sm:space-x-4">
+
+            {/* Buttons Section - Always Visible */}
+            <div className="flex space-x-2 sm:space-x-4 shrink-0">
               <button 
                 onClick={handleStartAssessment}
-                className={`px-4 py-2 rounded-full text-sm font-bold transition-all shadow-sm hover:shadow-md ${view === View.ASSESSMENT ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 hover:bg-emerald-50 border border-emerald-100'}`}
+                className={`px-3 py-2 md:px-4 md:py-2 rounded-full text-xs md:text-sm font-bold transition-all shadow-sm hover:shadow-md whitespace-nowrap ${view === View.ASSESSMENT ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 hover:bg-emerald-50 border border-emerald-100'}`}
               >
                 Diagnóstico
               </button>
               <button 
                 onClick={() => setView(View.ADMIN_LOGIN)}
-                className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${[View.ADMIN_LOGIN, View.ADMIN_DASHBOARD].includes(view) ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-emerald-600'}`}
+                className={`px-3 py-2 md:px-4 md:py-2 rounded-full text-xs md:text-sm font-bold transition-all whitespace-nowrap ${[View.ADMIN_LOGIN, View.ADMIN_DASHBOARD].includes(view) ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-emerald-600 border border-transparent hover:border-slate-200'}`}
               >
                 Admin
               </button>
@@ -244,11 +256,9 @@ const App: React.FC = () => {
                       <span>Iniciar Diagnóstico Agora</span>
                       <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
                     </button>
-                    {/* "Saiba Mais" button removed per request */}
                   </div>
 
                   <div className="mt-12 flex items-center justify-center lg:justify-start gap-8 text-slate-400 grayscale opacity-70">
-                    {/* Trust badges placeholders */}
                     <div className="flex flex-col items-center">
                        <span className="text-2xl font-black">10+</span>
                        <span className="text-xs font-bold uppercase">Eixos ESG</span>
@@ -269,16 +279,12 @@ const App: React.FC = () => {
                 {/* Animated Illustration */}
                 <div className="flex-1 w-full max-w-lg lg:max-w-none relative animate-float">
                   <div className="relative aspect-square">
-                     {/* Abstract Eco City Composition */}
                      <div className="absolute inset-0 bg-gradient-to-tr from-emerald-100 to-teal-50 rounded-[3rem] transform rotate-3 shadow-2xl"></div>
                      <div className="absolute inset-0 bg-white/40 backdrop-blur-xl rounded-[3rem] transform -rotate-2 border border-white/50 shadow-lg flex items-center justify-center p-8 overflow-hidden">
                         
-                        {/* Animated Elements inside the card */}
                         <div className="relative w-full h-full">
-                           {/* Sun */}
                            <div className="absolute top-0 right-0 w-20 h-20 bg-yellow-400 rounded-full opacity-20 blur-xl animate-pulse"></div>
                            
-                           {/* Chart */}
                            <div className="absolute bottom-10 left-4 w-3/4 h-32 flex items-end gap-2 z-10">
                               <div className="w-1/4 h-[40%] bg-emerald-200 rounded-t-lg animate-pulse"></div>
                               <div className="w-1/4 h-[60%] bg-emerald-300 rounded-t-lg animate-pulse animation-delay-2000"></div>
@@ -286,16 +292,13 @@ const App: React.FC = () => {
                               <div className="w-1/4 h-[100%] bg-emerald-500 rounded-t-lg shadow-lg"></div>
                            </div>
 
-                           {/* Floating Leaves */}
                            <LeafIcon className="absolute top-10 left-10 w-12 h-12 text-emerald-500 animate-sway opacity-80" />
                            <LeafIcon className="absolute top-20 right-20 w-8 h-8 text-teal-500 animate-sway animation-delay-2000 opacity-60" />
                            <LeafIcon className="absolute bottom-32 right-10 w-10 h-10 text-lime-500 animate-sway animation-delay-4000 opacity-70" />
 
-                           {/* Clouds */}
                            <CloudIcon className="absolute top-4 left-20 w-24 h-16 text-slate-400 animate-float-delayed" />
                            <CloudIcon className="absolute bottom-20 right-[-20px] w-32 h-20 text-slate-300 animate-float" />
                            
-                           {/* Central Text/Badge */}
                            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white/90 backdrop-blur-md px-6 py-3 rounded-2xl shadow-xl border border-emerald-100 text-center z-20">
                               <span className="block text-3xl font-black text-emerald-600">85%</span>
                               <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Meta de Sustentabilidade</span>
