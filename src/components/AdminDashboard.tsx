@@ -152,6 +152,15 @@ const AdminDashboard: React.FC = () => {
       .sort((a, b) => b.value - a.value);
   }, [submissions]);
 
+  // --- COLORS MAP FOR ACTION PLAN COLUMNS ---
+  const timeframeColors: Record<TimeFrame, { header: string, body: string, border: string }> = {
+      '1 Mês':   { header: 'bg-rose-100 text-rose-800', body: 'bg-rose-50', border: 'border-rose-200' },
+      '3 Meses': { header: 'bg-orange-100 text-orange-800', body: 'bg-orange-50', border: 'border-orange-200' },
+      '6 Meses': { header: 'bg-amber-100 text-amber-800', body: 'bg-amber-50', border: 'border-amber-200' },
+      '1 Ano':   { header: 'bg-blue-100 text-blue-800', body: 'bg-blue-50', border: 'border-blue-200' },
+      '5 Anos':  { header: 'bg-indigo-100 text-indigo-800', body: 'bg-indigo-50', border: 'border-indigo-200' },
+  };
+
   // --- RENDER ---
 
   if (loading) {
@@ -288,18 +297,16 @@ const AdminDashboard: React.FC = () => {
                       const actions = groupedAggregateActions[timeframe];
                       if(!actions || actions.length === 0) return null;
                       
-                      const colorClass = timeframe.includes('Mês') ? 'border-red-200 bg-red-50 text-red-900' : 
-                                         timeframe.includes('Ano') && !timeframe.includes('5') ? 'border-yellow-200 bg-yellow-50 text-yellow-900' : 
-                                         'border-emerald-200 bg-emerald-50 text-emerald-900';
+                      const colors = timeframeColors[timeframe];
 
                       return (
                           <div key={timeframe} className="flex flex-col h-full print:break-inside-avoid">
-                              <div className={`px-4 py-3 rounded-t-xl border-t border-x font-black text-center text-xs md:text-sm uppercase tracking-wider shadow-sm ${colorClass}`}>
+                              <div className={`px-4 py-3 rounded-t-xl border-t border-x font-black text-center text-xs md:text-sm uppercase tracking-wider shadow-sm ${colors.header} ${colors.border}`}>
                                   {timeframe}
                               </div>
-                              <div className="border border-slate-200 rounded-b-xl p-4 md:p-5 flex-1 bg-white space-y-4 shadow-sm">
+                              <div className={`border rounded-b-xl p-4 md:p-5 flex-1 space-y-4 shadow-sm ${colors.border} ${colors.body}`}>
                                   {actions.slice(0, 4).map((action, i) => ( 
-                                      <div key={i} className="border-b border-slate-100 last:border-0 pb-3 last:pb-0">
+                                      <div key={i} className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm">
                                           <div className="font-bold text-slate-800 text-xs md:text-sm mb-1 leading-snug">{action.title}</div>
                                           <div className="text-slate-500 text-[10px] md:text-xs leading-relaxed">{action.description}</div>
                                       </div>
@@ -458,15 +465,7 @@ const AdminDashboard: React.FC = () => {
                              </td>
                              <td className="px-6 py-4 md:px-10 md:py-6 no-print">
                                  <div className="flex items-center gap-2">
-                                     <button 
-                                        onClick={() => setSelectedSubmission(sub)}
-                                        className="text-emerald-700 font-bold text-xs md:text-sm bg-emerald-50 border border-emerald-100 px-3 py-2 md:px-5 md:py-3 rounded-xl hover:bg-emerald-600 hover:text-white hover:shadow-lg transition-all active:scale-95 flex items-center gap-2 whitespace-nowrap"
-                                     >
-                                         Ver Detalhes
-                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 hidden md:block" viewBox="0 0 20 20" fill="currentColor">
-                                             <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                                         </svg>
-                                     </button>
+                                     {/* 'Ver Detalhes' button removed as requested */}
                                      <button
                                          onClick={() => handleDelete(sub.id, sub.respondent.name)}
                                          className="text-red-600 bg-red-50 border border-red-100 p-3 rounded-xl hover:bg-red-600 hover:text-white transition-all"

@@ -121,34 +121,96 @@ export const clearAllSubmissions = async (): Promise<boolean> => {
   }
 };
 
-// --- ACTION PLAN GENERATOR (Mantida para funcionamento do Dashboard) ---
+// --- ACTION PLAN GENERATOR (Atualizado para ser mais realista e estratégico) ---
 
 const ACTION_TEMPLATES: Record<'CRITICAL' | 'REGULAR' | 'EXCELLENT', Record<TimeFrame, { title: string, desc: string, priority: 'Alta' | 'Média' | 'Baixa' }>> = {
   CRITICAL: {
-    '1 Mês': { title: 'Diagnóstico e Contenção de Riscos', desc: 'Instituir comitê de crise imediato e mapear passivos críticos em {cat} para evitar sanções.', priority: 'Alta' },
-    '3 Meses': { title: 'Adequação Normativa Emergencial', desc: 'Revisar decretos e publicar portarias para garantir conformidade legal mínima em {cat}.', priority: 'Alta' },
-    '6 Meses': { title: 'Estruturação de Projetos Básicos', desc: 'Elaborar termos de referência e buscar linhas de financiamento para resolver gargalos de {cat}.', priority: 'Alta' },
-    '1 Ano': { title: 'Início de Obras e Serviços Prioritários', desc: 'Executar as primeiras intervenções físicas ou contratações estruturantes para {cat}.', priority: 'Média' },
-    '5 Anos': { title: 'Recuperação e Estabilidade', desc: 'Atingir a média estadual de qualidade em {cat} e eliminar passivos históricos.', priority: 'Média' }
+    '1 Mês': { 
+        title: 'Força-Tarefa de Conformidade', 
+        desc: 'Criar grupo de trabalho imediato para mapear riscos legais e evitar sanções do MP/Tribunais em {cat}. Foco em "estancar a sangria".', 
+        priority: 'Alta' 
+    },
+    '3 Meses': { 
+        title: 'Diagnóstico e Regularização Documental', 
+        desc: 'Levantamento de passivos e elaboração de minutas de decretos para regulamentação básica de {cat}.', 
+        priority: 'Alta' 
+    },
+    '6 Meses': { 
+        title: 'Captação de Recursos Emergencial', 
+        desc: 'Protocolar projetos básicos nos ministérios/bancos de fomento para viabilizar obras essenciais em {cat}.', 
+        priority: 'Alta' 
+    },
+    '1 Ano': { 
+        title: 'Execução de Obras Estruturantes', 
+        desc: 'Início das intervenções físicas ou contratação de serviços terceirizados para sair do índice crítico em {cat}.', 
+        priority: 'Média' 
+    },
+    '5 Anos': { 
+        title: 'Estabilidade e Nivelamento Estadual', 
+        desc: 'Alcançar os índices médios do estado em {cat}, eliminando completamente os passivos históricos.', 
+        priority: 'Média' 
+    }
   },
   REGULAR: {
-    '1 Mês': { title: 'Análise de Gaps Operacionais', desc: 'Realizar auditoria rápida de processos em {cat} para identificar pontos de ineficiência.', priority: 'Média' },
-    '3 Meses': { title: 'Capacitação e Otimização', desc: 'Treinar equipes técnicas e revisar fluxos de trabalho para aumentar produtividade em {cat}.', priority: 'Média' },
-    '6 Meses': { title: 'Expansão de Cobertura', desc: 'Lançar projetos para ampliar o atendimento de {cat} para bairros periféricos ou não atendidos.', priority: 'Alta' },
-    '1 Ano': { title: 'Modernização e Digitalização', desc: 'Implementar sistemas de monitoramento digital e indicadores de desempenho para {cat}.', priority: 'Média' },
-    '5 Anos': { title: 'Universalização do Serviço', desc: 'Garantir acesso universal e padrões de qualidade elevados em todas as regiões para {cat}.', priority: 'Baixa' }
+    '1 Mês': { 
+        title: 'Auditoria de Processos', 
+        desc: 'Revisar fluxos de trabalho em {cat} para identificar gargalos burocráticos que impedem a nota excelente.', 
+        priority: 'Média' 
+    },
+    '3 Meses': { 
+        title: 'Capacitação Técnica e Tecnologia', 
+        desc: 'Treinamento intensivo das equipes e aquisição de softwares de gestão para otimizar {cat}.', 
+        priority: 'Média' 
+    },
+    '6 Meses': { 
+        title: 'Expansão da Cobertura do Serviço', 
+        desc: 'Ampliar o atendimento de {cat} para áreas rurais ou bairros periféricos ainda não atendidos.', 
+        priority: 'Alta' 
+    },
+    '1 Ano': { 
+        title: 'Digitalização e Monitoramento', 
+        desc: 'Implantar centro de controle operacional com indicadores em tempo real para {cat}.', 
+        priority: 'Média' 
+    },
+    '5 Anos': { 
+        title: 'Universalização com Qualidade', 
+        desc: 'Garantir que 100% da população tenha acesso a {cat} com padrões de qualidade certificados.', 
+        priority: 'Baixa' 
+    }
   },
   EXCELLENT: {
-    '1 Mês': { title: 'Validação e Integridade de Dados', desc: 'Auditar indicadores de {cat} para assegurar transparência e confiabilidade total.', priority: 'Baixa' },
-    '3 Meses': { title: 'Gestão do Conhecimento', desc: 'Documentar boas práticas de {cat} e criar programas de mentoria para outros setores.', priority: 'Baixa' },
-    '6 Meses': { title: 'Benchmarking Internacional', desc: 'Comparar métricas de {cat} com padrões globais e identificar oportunidades de inovação.', priority: 'Média' },
-    '1 Ano': { title: 'Certificações e Prêmios', desc: 'Submeter a gestão de {cat} a auditorias para obtenção de selos verdes e prêmios (ISO, etc).', priority: 'Média' },
-    '5 Anos': { title: 'Liderança Global e Resiliência', desc: 'Tornar {cat} um case global de sucesso, integrado a conceitos de Cidades Inteligentes e Regenerativas.', priority: 'Baixa' }
+    '1 Mês': { 
+        title: 'Blindagem e Governança de Dados', 
+        desc: 'Validar integridade dos indicadores de {cat} para garantir que o resultado seja auditável e sustentável. Não permitir retrocesso.', 
+        priority: 'Alta' 
+    },
+    '3 Meses': { 
+        title: 'Gestão do Conhecimento e Mentoria', 
+        desc: 'Documentar os POPs (Procedimentos Operacionais Padrão) de {cat} para que a excelência não dependa de pessoas específicas.', 
+        priority: 'Média' 
+    },
+    '6 Meses': { 
+        title: 'Inovação e Benchmarking Global', 
+        desc: 'Buscar tecnologias disruptivas (IoT/AI) aplicadas a {cat} para superar os padrões nacionais.', 
+        priority: 'Média' 
+    },
+    '1 Ano': { 
+        title: 'Certificações Internacionais (ISO)', 
+        desc: 'Submeter a gestão de {cat} a auditorias externas para obtenção de selos de qualidade globais.', 
+        priority: 'Média' 
+    },
+    '5 Anos': { 
+        title: 'Legado e Cidade Inteligente', 
+        desc: 'Consolidar {cat} como case de referência mundial, integrando-o totalmente ao ecossistema de Smart Cities.', 
+        priority: 'Baixa' 
+    }
   }
 };
 
 const generateActionsForCategory = (cat: CategoryData, pct: number): ActionPlanItem[] => {
   const actions: ActionPlanItem[] = [];
+  
+  // Select Template Group based on Percentage
   let templateGroup = ACTION_TEMPLATES.CRITICAL;
   if (pct >= 80) templateGroup = ACTION_TEMPLATES.EXCELLENT;
   else if (pct >= 40) templateGroup = ACTION_TEMPLATES.REGULAR;
@@ -157,6 +219,7 @@ const generateActionsForCategory = (cat: CategoryData, pct: number): ActionPlanI
 
   (['1 Mês', '3 Meses', '6 Meses', '1 Ano', '5 Anos'] as TimeFrame[]).forEach(timeframe => {
     const template = templateGroup[timeframe];
+    
     let responsible = 'Equipe Técnica';
     if (timeframe === '1 Mês') responsible = 'Gestão / Gabinete';
     else if (timeframe === '3 Meses') responsible = 'Coordenação Jurídica/Técnica';
@@ -181,6 +244,9 @@ const generateActionsForCategory = (cat: CategoryData, pct: number): ActionPlanI
 
 export const generateFullActionPlan = (result: AssessmentResult): ActionPlanItem[] => {
   let allActions: ActionPlanItem[] = [];
+
+  // Sort categories by lowest score first to prioritize urgent needs in the list order
+  // However, for the consolidated plan, we might want to group by timeframe which is handled in the UI
   const sortedCategories = [...CATEGORIES].sort((a, b) => {
     const scoreA = result.categoryScores[a.id]?.percentage || 0;
     const scoreB = result.categoryScores[b.id]?.percentage || 0;
