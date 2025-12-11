@@ -114,68 +114,43 @@ const AdminDashboard: React.FC = () => {
          </div>
       </div>
 
-      {/* --- PRINT LAYOUT --- */}
+      {/* --- PRINT LAYOUT (COMPACT 2 PAGES) --- */}
       <div className="print:block">
           
-          {/* PÁGINA 1: CAPA */}
-          <div className="hidden print:flex print-cover">
-              <div className="pt-20 px-4">
-                  <div className="text-[12px] font-bold uppercase tracking-widest text-slate-500 mb-4">Relatório Oficial</div>
-                  <h1 className="text-[48px] font-black text-[#001f3f] leading-none mb-4">Relatório ESG<br/>Municipal</h1>
-                  <h2 className="text-[24px] font-light text-slate-600">Diagnóstico, Inteligência e<br/>Plano de Ação Integrado</h2>
+          {/* 1. HEADER INTEGRADO (Substitui capa full page) */}
+          <div className="hidden print:flex print-header-container">
+              <div>
+                  <div className="print-small font-bold uppercase tracking-widest text-slate-500">Relatório Oficial ESG</div>
+                  <h1 className="print-h1">Diagnóstico Municipal<br/>Consolidado</h1>
               </div>
-              
-              <div className="px-4 mb-20">
-                  <div className="mb-8">
-                      <div className="text-[14px] font-bold text-slate-900">Prefeitura Municipal de Mogi das Cruzes</div>
-                      <div className="text-[12px] text-slate-500">Sistema de Gestão Sustentável</div>
-                  </div>
-                  <div className="text-[12px] text-slate-400">
-                      Gerado em: {new Date().toLocaleDateString('pt-BR')}
-                  </div>
+              <div className="text-right">
+                  <div className="print-bold text-[12px]">Prefeitura Municipal de Mogi das Cruzes</div>
+                  <div className="print-small">{new Date().toLocaleDateString('pt-BR')} | Sistema Joi.a</div>
               </div>
-
-              <div className="print-cover-footer"></div>
           </div>
 
-          {/* RODAPÉ FIXO */}
-          <div className="hidden print:flex print-footer-fixed">
-              <span>Relatório ESG Municipal — Sistema de Diagnóstico Automatizado</span>
-              <span>Uso Interno e Confidencial</span>
+          {/* 2. SUMÁRIO & KPIs (Grid Compacto) */}
+          <div className="print-grid-4">
+              <div className="print-card bg-slate-50">
+                  <div className="print-small font-bold uppercase">Total Diag.</div>
+                  <div className="text-xl font-black text-[#001f3f]">{submissions.length}</div>
+              </div>
+              <div className="print-card bg-slate-50">
+                  <div className="print-small font-bold uppercase">Maturidade</div>
+                  <div className="text-xl font-black text-[#001f3f]">{aggregateResult?.percentage.toFixed(0)}%</div>
+              </div>
+              <div className="print-card bg-slate-50 col-span-2">
+                  <div className="print-small font-bold uppercase">Destaque Engajamento</div>
+                  <div className="text-sm font-bold truncate">{sectorData[0]?.name || '-'}</div>
+              </div>
           </div>
 
-          {/* PÁGINA 2: SUMÁRIO E DIAGNÓSTICO GERAL */}
-          <div className="print:break-after-page">
-              <h2 className="print-h2">Sumário Executivo</h2>
-              <div className="mb-8">
-                  <div className="print-toc-item"><span>1. Diagnósticos Gerais e KPIs</span> <span>02</span></div>
-                  <div className="print-toc-item"><span>2. Dashboards de Performance</span> <span>02</span></div>
-                  <div className="print-toc-item"><span>3. Análise Executiva</span> <span>02</span></div>
-                  <div className="print-toc-item"><span>4. Plano de Ação (Curto e Médio Prazo)</span> <span>03</span></div>
-                  <div className="print-toc-item"><span>5. Plano de Ação (Longo Prazo)</span> <span>03</span></div>
-              </div>
-
-              <h2 className="print-h2 mt-8">1. Diagnósticos Gerais</h2>
-              <div className="grid grid-cols-3 gap-4 mb-8">
-                  <div className="border p-2 bg-slate-50">
-                      <div className="print-small font-bold uppercase text-slate-500">Total de Diagnósticos</div>
-                      <div className="print-h1 text-[#001f3f]">{submissions.length}</div>
-                  </div>
-                  <div className="border p-2 bg-slate-50">
-                      <div className="print-small font-bold uppercase text-slate-500">Maturidade Geral</div>
-                      <div className="print-h1 text-[#001f3f]">{aggregateResult?.percentage.toFixed(0)}%</div>
-                  </div>
-                  <div className="border p-2 bg-slate-50">
-                      <div className="print-small font-bold uppercase text-slate-500">Maior Engajamento</div>
-                      <div className="print-h3 text-slate-900 truncate">{sectorData[0]?.name || '-'}</div>
-                  </div>
-              </div>
-
-              <h2 className="print-h2">2. Dashboards de Performance</h2>
-              <div className="print-grid-2">
+          {/* 3. GRÁFICOS LADO A LADO (Altura Reduzida) */}
+          <div className="print-grid-2">
+              <div className="print-card">
+                  <h3 className="print-h3 text-center mb-1">Distribuição Setorial</h3>
                   <div className="chart-container">
-                      <h3 className="print-h3 text-center mb-2">Distribuição por Setor</h3>
-                      <ResponsiveContainer width="100%" height={160}>
+                      <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
                             <Pie 
                                 data={sectorData} 
@@ -183,103 +158,114 @@ const AdminDashboard: React.FC = () => {
                                 nameKey="name" 
                                 cx="50%" 
                                 cy="50%" 
-                                outerRadius={50} 
+                                outerRadius={40} 
                                 fill="#001f3f"
                                 labelLine={false}
                             />
-                            <Legend layout="vertical" verticalAlign="middle" align="right" wrapperStyle={{fontSize: '8px'}} />
+                            <Legend layout="vertical" verticalAlign="middle" align="right" wrapperStyle={{fontSize: '7px', width: '40%'}} />
                           </PieChart>
                       </ResponsiveContainer>
                   </div>
+              </div>
+              <div className="print-card">
+                  <h3 className="print-h3 text-center mb-1">Performance por Eixo</h3>
                   <div className="chart-container">
-                      <h3 className="print-h3 text-center mb-2">Maturidade por Eixo</h3>
-                      <ResponsiveContainer width="100%" height={160}>
+                     <ResponsiveContainer width="100%" height="100%">
                          <BarChart data={Object.entries(aggregateResult?.categoryScores || {}).map(([k,v]) => ({name:k, score:v.percentage}))}>
                             <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                            <XAxis dataKey="name" tick={{fontSize: 8}} interval={0} tickFormatter={(v) => v.substring(0,3).toUpperCase()} />
+                            <XAxis dataKey="name" tick={{fontSize: 7}} interval={0} tickFormatter={(v) => v.substring(0,3).toUpperCase()} />
                             <YAxis hide domain={[0,100]} />
                             <Bar dataKey="score" fill="#001f3f" />
                         </BarChart>
                       </ResponsiveContainer>
                   </div>
               </div>
+          </div>
 
-              <h2 className="print-h2 mt-4">3. Análise Executiva</h2>
-              <div className="print-p mb-8 border-l-2 border-[#001f3f] pl-3">
-                  <p className="mb-2">
-                      <strong>Interpretação:</strong> O índice geral de {aggregateResult?.percentage.toFixed(0)}% indica um estágio de {aggregateResult?.level}. 
-                      Os eixos temáticos demonstram variações que exigem atenção específica, especialmente nas áreas com pontuação inferior a 40%.
-                  </p>
-                  <p className="mb-2">
-                      <strong>Pontos Críticos:</strong> A disparidade entre setores sugere necessidade de padronização de processos. 
-                      Recomenda-se focar esforços imediatos nas ações de "1 Mês" listadas abaixo para ganhos rápidos de conformidade (Quick Wins).
+          {/* 4. ANÁLISE EXECUTIVA (Texto Condensado) */}
+          <div className="mb-4">
+              <h2 className="print-h2">Análise Executiva</h2>
+              <div className="print-text border-l-2 border-[#001f3f] pl-2">
+                  <p className="mb-1">
+                      O índice de <strong>{aggregateResult?.percentage.toFixed(0)}%</strong> classifica a gestão como <strong>{aggregateResult?.level}</strong>. 
+                      Há variações significativas entre eixos, exigindo padronização de processos.
                   </p>
                   <p>
-                      <strong>Evolução:</strong> Para atingir o próximo nível de maturidade, é crucial institucionalizar a governança ESG 
-                      através de portarias e capacitação técnica contínua dos servidores envolvidos.
+                      <strong>Recomendação:</strong> Priorizar ações de curto prazo (1-3 meses) listadas abaixo para ganhos rápidos de conformidade (Quick Wins) e institucionalizar a governança ESG via decretos.
                   </p>
               </div>
           </div>
 
-          {/* PÁGINA 3: PLANO DE AÇÃO */}
-          <div>
-             <h2 className="print-h2">4. Plano de Ação Integrado</h2>
-             
-             <div className="grid grid-cols-2 gap-6">
+          {/* 5. PLANO DE AÇÃO INTEGRADO (Compacto 2 colunas) */}
+          <div className="print-section">
+             <h2 className="print-h2">Plano de Ação Estratégico</h2>
+             <div className="print-grid-2">
                  {(['1 Mês', '3 Meses', '6 Meses', '1 Ano'] as TimeFrame[]).map(tf => {
                      const actions = groupedAggregateActions[tf] || [];
                      if(actions.length === 0) return null;
                      
                      return (
-                         <div key={tf} className="print-section">
-                             <h3 className="print-h3 uppercase border-b border-slate-300 pb-1 mb-2">{tf}</h3>
-                             <div className="print-compact-list">
-                                 {actions.slice(0, 4).map((act, i) => (
-                                     <div key={i}>
-                                         <span className="font-bold text-[11px] text-[#001f3f] block">• {act.title}</span>
-                                         <span className="text-[10px] text-slate-600 block pl-2 leading-tight">{act.description}</span>
+                         <div key={tf} className="print-card border-t-2 border-t-[#001f3f]">
+                             <div className="flex justify-between items-center border-b border-dashed border-slate-300 mb-1 pb-1">
+                                <h3 className="print-h3">{tf}</h3>
+                                <span className="print-small font-bold uppercase">
+                                    {tf.includes('Mês') ? 'Curto Prazo' : 'Médio Prazo'}
+                                </span>
+                             </div>
+                             <div>
+                                 {actions.slice(0, 3).map((act, i) => (
+                                     <div key={i} className="print-list-item">
+                                         <div className="print-bold text-[9px] leading-tight">• {act.title}</div>
+                                         <div className="print-text text-[8px] leading-tight text-slate-500 pl-1">{act.description}</div>
                                      </div>
                                  ))}
+                                 {actions.length > 3 && <div className="print-small italic text-center">+ {actions.length - 3} itens</div>}
                              </div>
                          </div>
                      )
                  })}
              </div>
+          </div>
 
-             <div className="mt-4">
-                 <h2 className="print-h2">5. Visão de Longo Prazo (5 Anos)</h2>
-                 <div className="print-section">
-                     <div className="print-compact-list grid grid-cols-2 gap-4">
-                        {(groupedAggregateActions['5 Anos'] || []).slice(0, 4).map((act, i) => (
-                             <div key={i}>
-                                 <span className="font-bold text-[11px] text-[#001f3f] block">→ {act.title}</span>
-                                 <span className="text-[10px] text-slate-600 block pl-3 leading-tight">{act.description}</span>
+          {/* 6. LONGO PRAZO E TABELA (Rodapé da pág 2 se possível) */}
+          <div className="print-section">
+             <div className="print-grid-2">
+                <div>
+                     <h2 className="print-h2" style={{marginTop: 0}}>Visão 2030 (5 Anos)</h2>
+                     <div className="print-card">
+                        {groupedAggregateActions['5 Anos']?.slice(0, 3).map((act, i) => (
+                             <div key={i} className="print-list-item">
+                                 <div className="print-bold text-[9px]">→ {act.title}</div>
+                                 <div className="print-text text-[8px] pl-2">{act.description}</div>
                              </div>
                         ))}
                      </div>
-                 </div>
+                </div>
+                <div>
+                     <h2 className="print-h2" style={{marginTop: 0}}>Últimos Registros</h2>
+                     <table className="w-full text-left border-collapse text-[8px]">
+                          <thead>
+                              <tr className="border-b border-slate-400">
+                                  <th className="py-0.5 font-bold">Setor</th>
+                                  <th className="py-0.5 font-bold text-right">Score</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              {submissions.slice(0, 5).map(sub => (
+                                  <tr key={sub.id} className="border-b border-slate-100">
+                                      <td className="py-0.5 truncate max-w-[100px]">{sub.respondent.sector}</td>
+                                      <td className="py-0.5 text-right font-bold">{sub.result.percentage.toFixed(0)}%</td>
+                                  </tr>
+                              ))}
+                          </tbody>
+                      </table>
+                </div>
              </div>
+          </div>
 
-             {/* Tabela de Registros - Compacta no final */}
-             <h2 className="print-h2 mt-6">Anexo: Registros Individuais</h2>
-             <table className="w-full text-left border-collapse text-[9px]">
-                  <thead>
-                      <tr className="border-b border-slate-400">
-                          <th className="py-1 font-bold">Respondente</th>
-                          <th className="py-1 font-bold">Setor</th>
-                          <th className="py-1 font-bold text-right">Score</th>
-                      </tr>
-                  </thead>
-                  <tbody>
-                      {submissions.slice(0, 10).map(sub => (
-                          <tr key={sub.id} className="border-b border-slate-200">
-                              <td className="py-1">{sub.respondent.name}</td>
-                              <td className="py-1">{sub.respondent.sector}</td>
-                              <td className="py-1 text-right font-bold">{sub.result.percentage.toFixed(0)}%</td>
-                          </tr>
-                      ))}
-                  </tbody>
-              </table>
+          <div className="print-footer">
+              <span>Relatório ESG Municipal - Gerado Automaticamente</span>
+              <span>Página 1-2</span>
           </div>
 
       </div>

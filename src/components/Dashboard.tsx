@@ -65,14 +65,14 @@ const Dashboard: React.FC<Props> = ({ result, respondentData }) => {
         </button>
       </div>
 
-      {/* --- PRINT LAYOUT (Individual) --- */}
+      {/* --- PRINT LAYOUT (Individual Compact) --- */}
       <div className="print:block">
         
-        {/* HEADER SIMPLIFICADO P/ INDIVIDUAL */}
-        <div className="hidden print:flex justify-between items-start border-b border-slate-300 pb-2 mb-4">
+        {/* HEADER COMPACTO */}
+        <div className="hidden print:flex print-header-container">
             <div>
-                <h1 className="print-h2 mb-0 border-none">Diagnóstico Individual</h1>
-                <p className="print-small">{respondentData?.name} | {respondentData?.sector}</p>
+                <h1 className="print-h1">Diagnóstico Individual</h1>
+                <p className="print-small text-slate-600">{respondentData?.name} | {respondentData?.sector}</p>
             </div>
             <div className="text-right print-small">
                 {new Date().toLocaleDateString('pt-BR')}
@@ -83,24 +83,22 @@ const Dashboard: React.FC<Props> = ({ result, respondentData }) => {
         <div className="print-grid-2">
             
             {/* Left: Key Metrics */}
-            <div className="border p-4 bg-slate-50">
-                <h3 className="print-h3 uppercase text-slate-500 mb-2">Score do Setor</h3>
-                <div className="flex items-center gap-2 mb-2">
-                        <div className="text-[32px] font-black tracking-tighter" style={{ color: getScoreColor(result.percentage) }}>
-                        {result.percentage.toFixed(0)}%
-                        </div>
+            <div className="print-card bg-slate-50 flex flex-col justify-center items-center">
+                <h3 className="print-h3 text-slate-500 mb-1">Score do Setor</h3>
+                <div className="text-[32px] font-black tracking-tighter leading-none mb-1" style={{ color: getScoreColor(result.percentage) }}>
+                    {result.percentage.toFixed(0)}%
                 </div>
-                <div className="print-small font-bold uppercase border border-slate-300 px-1 inline-block">
+                <div className="print-small font-bold uppercase border border-slate-300 px-2 rounded bg-white">
                     {result.percentage < 40 ? 'Crítico' : result.percentage < 80 ? 'Em Desenv.' : 'Excelente'}
                 </div>
             </div>
 
             {/* Right: Radar Analysis */}
-            <div className="chart-container" style={{height: '180px'}}>
-                    <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart cx="50%" cy="50%" outerRadius="70%" data={chartData}>
+            <div className="chart-container">
+                <ResponsiveContainer width="100%" height="100%">
+                    <RadarChart cx="50%" cy="50%" outerRadius="65%" data={chartData}>
                         <PolarGrid stroke="#e2e8f0" strokeWidth={1} />
-                        <PolarAngleAxis dataKey="subject" tick={{ fontSize: 8, fontWeight: 700, fill: '#64748b' }} />
+                        <PolarAngleAxis dataKey="subject" tick={{ fontSize: 7, fontWeight: 700, fill: '#64748b' }} />
                         <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
                         <Radar name="Pontuação" dataKey="A" stroke={getScoreColor(result.percentage)} strokeWidth={2} fill={getScoreColor(result.percentage)} fillOpacity={0.25} />
                     </RadarChart>
@@ -110,21 +108,21 @@ const Dashboard: React.FC<Props> = ({ result, respondentData }) => {
 
         {/* ACTION PLAN */}
         <div>
-            <h2 className="print-h2 mt-4">Plano de Ação Sugerido</h2>
+            <h2 className="print-h2 mt-2">Plano de Ação Sugerido</h2>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="print-grid-2">
                 {(['1 Mês', '3 Meses', '6 Meses', '1 Ano'] as TimeFrame[]).map((timeframe) => {
                     const timeActions = groupedActions[timeframe];
                     if (timeActions.length === 0) return null;
 
                     return (
-                        <div key={timeframe} className="print-section">
-                            <h3 className="print-h3 border-b border-slate-200 uppercase">{timeframe}</h3>
-                            <div className="print-compact-list">
+                        <div key={timeframe} className="print-card">
+                            <h3 className="print-h3 border-b border-slate-200 mb-1">{timeframe}</h3>
+                            <div>
                                 {timeActions.slice(0, 3).map((action, idx) => (
-                                    <div key={idx}>
-                                        <div className="font-bold text-[10px] text-slate-900 leading-tight">• {action.title}</div>
-                                        <div className="text-[9px] text-slate-500 leading-tight text-justify">{action.description}</div>
+                                    <div key={idx} className="print-list-item">
+                                        <div className="print-bold text-[9px] leading-tight">• {action.title}</div>
+                                        <div className="print-text text-[8px] leading-tight pl-1">{action.description}</div>
                                     </div>
                                 ))}
                             </div>
@@ -133,6 +131,12 @@ const Dashboard: React.FC<Props> = ({ result, respondentData }) => {
                 })}
             </div>
         </div>
+        
+        <div className="print-footer">
+            <span>Diagnóstico Individual - Joi.a</span>
+            <span>Confidencial</span>
+        </div>
+
       </div>
       
       {/* WEB FALLBACK */}
