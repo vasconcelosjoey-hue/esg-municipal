@@ -11,107 +11,116 @@
       body {
         font-family: 'Inter', sans-serif;
         color: #1e293b; /* Slate-800 */
+        -webkit-font-smoothing: antialiased;
       }
       
       @media print {
         @page {
-          margin: 10mm;
-          size: A4;
+          margin: 12mm; /* 1.2cm margins */
+          size: A4 portrait;
         }
         
         body {
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
           background-color: white !important;
-          font-size: 9pt; /* Base font size for corporate reports */
+          font-size: 12px; /* Base 12px */
+          margin: 0;
+          padding: 0;
         }
 
-        /* --- CORPORATE STYLE UTILITIES (Accenture/Gartner) --- */
-        
-        .corp-header-main {
-            font-size: 20pt;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: -0.5px;
-            color: #0f172a;
-            line-height: 1.1;
-            margin-bottom: 2px;
-        }
+        /* --- TYPOGRAPHY HIERARCHY --- */
+        .print-h1 { font-size: 20px !important; font-weight: 800 !important; line-height: 1.2; color: #001f3f; } /* Title Main */
+        .print-h2 { font-size: 16px !important; font-weight: 700 !important; line-height: 1.3; color: #001f3f; text-transform: uppercase; margin-bottom: 8px; border-bottom: 1px solid #ccc; padding-bottom: 2px; } /* Sections */
+        .print-h3 { font-size: 14px !important; font-weight: 600 !important; line-height: 1.3; color: #334155; margin-bottom: 4px; } /* Subtitles */
+        .print-p  { font-size: 12px !important; line-height: 1.4; color: #1e293b; text-align: justify; } /* Body */
+        .print-small { font-size: 10px !important; color: #64748b; }
 
-        .corp-header-sub {
-            font-size: 10pt;
-            font-weight: 500;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .corp-section-title {
-            font-size: 12pt;
-            font-weight: 700;
-            color: #0f172a;
-            text-transform: uppercase;
-            border-left: 4px solid #0f172a;
-            padding-left: 8px;
-            margin-bottom: 8px;
-            line-height: 1;
+        /* --- COVER PAGE --- */
+        .print-cover {
+            height: 297mm; /* Full A4 height approximate */
+            width: 100%;
             display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            page-break-after: always;
+            position: relative;
+        }
+        
+        .print-cover-footer {
+            height: 60px;
+            background-color: #001f3f; /* Institutional Navy */
+            width: 100%;
+            margin-bottom: -12mm; /* Bleed into bottom margin */
+            margin-left: -12mm;
+            width: calc(100% + 24mm);
+        }
+
+        /* --- FOOTER (REPEATED) --- */
+        .print-footer-fixed {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 15px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
             align-items: center;
-        }
-
-        .corp-card {
-            border: 1px solid #e2e8f0;
-            padding: 10px;
+            font-size: 8px;
+            color: #94a3b8;
             background: white;
-            break-inside: avoid;
-            margin-bottom: 8px;
+            padding-top: 2px;
         }
 
-        .corp-grid-2 {
+        /* --- LAYOUT UTILITIES --- */
+        .print-toc-item {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dotted #cbd5e1;
+            margin-bottom: 6px;
+            padding-bottom: 2px;
+        }
+
+        .print-grid-2 {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-
-        .corp-grid-3 {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-        }
-
-        .corp-grid-header {
-            display: grid;
-            grid-template-columns: 1fr 2fr;
             gap: 16px;
+            margin-bottom: 12px;
+            break-inside: avoid;
+        }
+        
+        .print-section {
             margin-bottom: 16px;
-            align-items: stretch;
-        }
-        
-        .corp-badge {
-            font-size: 7pt;
-            font-weight: 700;
-            text-transform: uppercase;
-            padding: 2px 6px;
-            border-radius: 2px;
-            display: inline-block;
+            break-inside: avoid;
         }
 
-        /* Helper to force charts */
+        .print-compact-list div {
+            margin-bottom: 6px; /* Minimal spacing */
+        }
+        
+        /* Charts */
         .chart-container {
+            height: 200px !important;
             width: 100% !important;
-            height: 180px !important; 
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 8px;
         }
 
-        /* Clean UI */
+        /* Hide Web Elements */
         .no-print { display: none !important; }
-        button { display: none !important; }
-        .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl { box-shadow: none !important; }
-        .rounded-2xl, .rounded-xl, .rounded-lg { border-radius: 2px !important; }
+        button, nav, footer.web-footer { display: none !important; }
         
-        /* Reset spacing */
-        .p-4, .p-6, .p-8 { padding: 8px !important; }
-        .gap-4, .gap-6, .gap-8 { gap: 8px !important; }
-        .mb-4, .mb-6, .mb-8 { margin-bottom: 8px !important; }
+        /* Reset Shadows/Roundness */
+        .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl { box-shadow: none !important; }
+        .rounded-2xl, .rounded-xl, .rounded-lg, .rounded-3xl { border-radius: 2px !important; }
+        .bg-slate-50, .bg-slate-100 { background-color: white !important; }
+        .border, .border-2 { border-width: 1px !important; border-color: #cbd5e1 !important; }
+        
+        /* Colors */
+        .text-slate-900 { color: #0f172a !important; }
+        .bg-slate-900 { background-color: #001f3f !important; color: white !important; } /* Use Inst. Color */
       }
 
       /* Web Animations */

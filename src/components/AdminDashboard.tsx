@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { getSubmissions, generateFullActionPlan, deleteSubmission, clearAllSubmissions } from '../utils';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, PieChart, Pie, Legend } from 'recharts';
 import { CATEGORIES } from '../constants';
 import { Submission, TimeFrame, ActionPlanItem, AssessmentResult } from '../types';
 import Dashboard from './Dashboard';
@@ -92,7 +92,7 @@ const AdminDashboard: React.FC = () => {
     const counts: Record<string, number> = {};
     submissions.forEach(s => {
       const sector = s.respondent.sector.trim() || 'N/A';
-      const displayName = sector.length > 15 ? sector.substring(0, 15) + '.' : sector;
+      const displayName = sector.length > 20 ? sector.substring(0, 20) + '.' : sector;
       counts[displayName] = (counts[displayName] || 0) + 1;
     });
     return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
@@ -117,130 +117,165 @@ const AdminDashboard: React.FC = () => {
       {/* --- PRINT LAYOUT --- */}
       <div className="print:block">
           
-          {/* HEADER */}
-          <div className="hidden print:flex justify-between items-start border-b-2 border-slate-200 pb-4 mb-6">
-              <div>
-                  <h1 className="corp-header-main">Relatório Gerencial Consolidado</h1>
-                  <p className="corp-header-sub">Visão Sistêmica de Performance</p>
+          {/* PÁGINA 1: CAPA */}
+          <div className="hidden print:flex print-cover">
+              <div className="pt-20 px-4">
+                  <div className="text-[12px] font-bold uppercase tracking-widest text-slate-500 mb-4">Relatório Oficial</div>
+                  <h1 className="text-[48px] font-black text-[#001f3f] leading-none mb-4">Relatório ESG<br/>Municipal</h1>
+                  <h2 className="text-[24px] font-light text-slate-600">Diagnóstico, Inteligência e<br/>Plano de Ação Integrado</h2>
               </div>
-              <div className="text-right">
-                  <div className="text-[9pt] font-bold uppercase text-slate-900">Prefeitura Municipal</div>
-                  <div className="text-[8pt] text-slate-500">{new Date().toLocaleDateString('pt-BR')}</div>
-              </div>
-          </div>
-
-          {/* KEY METRICS GRID */}
-          <div className="corp-grid-3 mb-6">
-              <div className="corp-card bg-slate-50">
-                  <div className="text-[8pt] font-bold text-slate-400 uppercase tracking-wider mb-1">Diagnósticos</div>
-                  <div className="text-3xl font-black text-slate-900">{submissions.length}</div>
-              </div>
-              <div className="corp-card bg-slate-50">
-                  <div className="text-[8pt] font-bold text-slate-400 uppercase tracking-wider mb-1">Média Global</div>
-                  <div className="text-3xl font-black text-slate-900">{aggregateResult?.percentage.toFixed(0)}%</div>
-              </div>
-              <div className="corp-card bg-slate-50">
-                  <div className="text-[8pt] font-bold text-slate-400 uppercase tracking-wider mb-1">Maior Engajamento</div>
-                  <div className="text-xl font-bold text-slate-900 mt-1 truncate">{sectorData[0]?.name || '-'}</div>
-              </div>
-          </div>
-
-          {/* CHARTS ROW (Side by Side 50/50) */}
-          <div className="corp-grid-2 mb-6">
-              <div className="corp-card">
-                  <h3 className="corp-section-title text-[10pt] mb-2 border-none pl-0">Participação por Setor</h3>
-                  <div className="chart-container">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart layout="vertical" data={sectorData} margin={{top:0, bottom:0, right: 10, left: 0}}>
-                            <CartesianGrid horizontal={true} vertical={false} strokeDasharray="3 3" stroke="#e2e8f0"/>
-                            <XAxis type="number" hide />
-                            <YAxis dataKey="name" type="category" width={80} tick={{fontSize: 9, fill: '#64748b'}} axisLine={false} tickLine={false} />
-                            <Bar dataKey="value" fill="#3b82f6" barSize={12} radius={[0,2,2,0]} />
-                        </BarChart>
-                    </ResponsiveContainer>
+              
+              <div className="px-4 mb-20">
+                  <div className="mb-8">
+                      <div className="text-[14px] font-bold text-slate-900">Prefeitura Municipal de Mogi das Cruzes</div>
+                      <div className="text-[12px] text-slate-500">Sistema de Gestão Sustentável</div>
+                  </div>
+                  <div className="text-[12px] text-slate-400">
+                      Gerado em: {new Date().toLocaleDateString('pt-BR')}
                   </div>
               </div>
-              <div className="corp-card">
-                  <h3 className="corp-section-title text-[10pt] mb-2 border-none pl-0">Maturidade por Eixo</h3>
+
+              <div className="print-cover-footer"></div>
+          </div>
+
+          {/* RODAPÉ FIXO */}
+          <div className="hidden print:flex print-footer-fixed">
+              <span>Relatório ESG Municipal — Sistema de Diagnóstico Automatizado</span>
+              <span>Uso Interno e Confidencial</span>
+          </div>
+
+          {/* PÁGINA 2: SUMÁRIO E DIAGNÓSTICO GERAL */}
+          <div className="print:break-after-page">
+              <h2 className="print-h2">Sumário Executivo</h2>
+              <div className="mb-8">
+                  <div className="print-toc-item"><span>1. Diagnósticos Gerais e KPIs</span> <span>02</span></div>
+                  <div className="print-toc-item"><span>2. Dashboards de Performance</span> <span>02</span></div>
+                  <div className="print-toc-item"><span>3. Análise Executiva</span> <span>02</span></div>
+                  <div className="print-toc-item"><span>4. Plano de Ação (Curto e Médio Prazo)</span> <span>03</span></div>
+                  <div className="print-toc-item"><span>5. Plano de Ação (Longo Prazo)</span> <span>03</span></div>
+              </div>
+
+              <h2 className="print-h2 mt-8">1. Diagnósticos Gerais</h2>
+              <div className="grid grid-cols-3 gap-4 mb-8">
+                  <div className="border p-2 bg-slate-50">
+                      <div className="print-small font-bold uppercase text-slate-500">Total de Diagnósticos</div>
+                      <div className="print-h1 text-[#001f3f]">{submissions.length}</div>
+                  </div>
+                  <div className="border p-2 bg-slate-50">
+                      <div className="print-small font-bold uppercase text-slate-500">Maturidade Geral</div>
+                      <div className="print-h1 text-[#001f3f]">{aggregateResult?.percentage.toFixed(0)}%</div>
+                  </div>
+                  <div className="border p-2 bg-slate-50">
+                      <div className="print-small font-bold uppercase text-slate-500">Maior Engajamento</div>
+                      <div className="print-h3 text-slate-900 truncate">{sectorData[0]?.name || '-'}</div>
+                  </div>
+              </div>
+
+              <h2 className="print-h2">2. Dashboards de Performance</h2>
+              <div className="print-grid-2">
                   <div className="chart-container">
-                     <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={Object.entries(aggregateResult?.categoryScores || {}).map(([k,v]) => ({name:k, score:v.percentage}))}>
-                            <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#e2e8f0"/>
-                            <XAxis dataKey="name" tick={{fontSize: 8, fill: '#64748b'}} interval={0} tickFormatter={(v)=>v.substring(0,3).toUpperCase()} axisLine={false} tickLine={false} />
+                      <h3 className="print-h3 text-center mb-2">Distribuição por Setor</h3>
+                      <ResponsiveContainer width="100%" height={160}>
+                          <PieChart>
+                            <Pie 
+                                data={sectorData} 
+                                dataKey="value" 
+                                nameKey="name" 
+                                cx="50%" 
+                                cy="50%" 
+                                outerRadius={50} 
+                                fill="#001f3f"
+                                labelLine={false}
+                            />
+                            <Legend layout="vertical" verticalAlign="middle" align="right" wrapperStyle={{fontSize: '8px'}} />
+                          </PieChart>
+                      </ResponsiveContainer>
+                  </div>
+                  <div className="chart-container">
+                      <h3 className="print-h3 text-center mb-2">Maturidade por Eixo</h3>
+                      <ResponsiveContainer width="100%" height={160}>
+                         <BarChart data={Object.entries(aggregateResult?.categoryScores || {}).map(([k,v]) => ({name:k, score:v.percentage}))}>
+                            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                            <XAxis dataKey="name" tick={{fontSize: 8}} interval={0} tickFormatter={(v) => v.substring(0,3).toUpperCase()} />
                             <YAxis hide domain={[0,100]} />
-                            <Bar dataKey="score" fill="#059669" barSize={20} radius={[2,2,0,0]}>
-                                {Object.entries(aggregateResult?.categoryScores || {}).map((e,i) => (
-                                    <Cell key={i} fill={e[1].percentage < 40 ? '#ef4444' : e[1].percentage < 80 ? '#eab308' : '#059669'} />
-                                ))}
-                            </Bar>
+                            <Bar dataKey="score" fill="#001f3f" />
                         </BarChart>
-                     </ResponsiveContainer>
+                      </ResponsiveContainer>
                   </div>
+              </div>
+
+              <h2 className="print-h2 mt-4">3. Análise Executiva</h2>
+              <div className="print-p mb-8 border-l-2 border-[#001f3f] pl-3">
+                  <p className="mb-2">
+                      <strong>Interpretação:</strong> O índice geral de {aggregateResult?.percentage.toFixed(0)}% indica um estágio de {aggregateResult?.level}. 
+                      Os eixos temáticos demonstram variações que exigem atenção específica, especialmente nas áreas com pontuação inferior a 40%.
+                  </p>
+                  <p className="mb-2">
+                      <strong>Pontos Críticos:</strong> A disparidade entre setores sugere necessidade de padronização de processos. 
+                      Recomenda-se focar esforços imediatos nas ações de "1 Mês" listadas abaixo para ganhos rápidos de conformidade (Quick Wins).
+                  </p>
+                  <p>
+                      <strong>Evolução:</strong> Para atingir o próximo nível de maturidade, é crucial institucionalizar a governança ESG 
+                      através de portarias e capacitação técnica contínua dos servidores envolvidos.
+                  </p>
               </div>
           </div>
 
-          {/* AGGREGATE ACTION PLAN (Grid of columns) */}
-          <div className="mb-6">
-             <h2 className="corp-section-title">Plano de Ação Integrado</h2>
-             <div className="corp-grid-3"> 
-             {/* Using Grid-3 for better readability than Grid-5 on vertical A4, allowing wrap if needed, but let's try compact lists */}
-                 {(['1 Mês', '3 Meses', '6 Meses', '1 Ano', '5 Anos'] as TimeFrame[]).map(tf => {
+          {/* PÁGINA 3: PLANO DE AÇÃO */}
+          <div>
+             <h2 className="print-h2">4. Plano de Ação Integrado</h2>
+             
+             <div className="grid grid-cols-2 gap-6">
+                 {(['1 Mês', '3 Meses', '6 Meses', '1 Ano'] as TimeFrame[]).map(tf => {
                      const actions = groupedAggregateActions[tf] || [];
-                     const displayActions = actions.slice(0, 4);
+                     if(actions.length === 0) return null;
                      
                      return (
-                         <div key={tf} className="corp-card border-t-2 border-t-slate-800">
-                             <div className="font-bold text-[9pt] uppercase text-slate-800 mb-2 border-b border-slate-100 pb-1">
-                                 {tf}
-                             </div>
-                             <div className="space-y-2">
-                                 {displayActions.map((act, i) => (
+                         <div key={tf} className="print-section">
+                             <h3 className="print-h3 uppercase border-b border-slate-300 pb-1 mb-2">{tf}</h3>
+                             <div className="print-compact-list">
+                                 {actions.slice(0, 4).map((act, i) => (
                                      <div key={i}>
-                                         <div className="font-bold text-[8pt] text-slate-900 leading-tight">{act.title}</div>
-                                         <div className="text-[7pt] text-slate-500 leading-tight truncate">{act.description}</div>
+                                         <span className="font-bold text-[11px] text-[#001f3f] block">• {act.title}</span>
+                                         <span className="text-[10px] text-slate-600 block pl-2 leading-tight">{act.description}</span>
                                      </div>
                                  ))}
-                                 {actions.length > 4 && (
-                                     <div className="text-[7pt] font-bold text-slate-400 italic mt-1">
-                                         + {actions.length - 4} ações adicionais
-                                     </div>
-                                 )}
                              </div>
                          </div>
                      )
                  })}
              </div>
-          </div>
 
-          {/* TABLE */}
-          <div className="corp-card p-0 overflow-hidden">
-              <div className="bg-slate-50 px-3 py-2 border-b border-slate-200">
-                  <h3 className="text-[9pt] font-bold uppercase text-slate-700">Registros Individuais</h3>
-              </div>
-              <table className="w-full text-left border-collapse">
+             <div className="mt-4">
+                 <h2 className="print-h2">5. Visão de Longo Prazo (5 Anos)</h2>
+                 <div className="print-section">
+                     <div className="print-compact-list grid grid-cols-2 gap-4">
+                        {(groupedAggregateActions['5 Anos'] || []).slice(0, 4).map((act, i) => (
+                             <div key={i}>
+                                 <span className="font-bold text-[11px] text-[#001f3f] block">→ {act.title}</span>
+                                 <span className="text-[10px] text-slate-600 block pl-3 leading-tight">{act.description}</span>
+                             </div>
+                        ))}
+                     </div>
+                 </div>
+             </div>
+
+             {/* Tabela de Registros - Compacta no final */}
+             <h2 className="print-h2 mt-6">Anexo: Registros Individuais</h2>
+             <table className="w-full text-left border-collapse text-[9px]">
                   <thead>
-                      <tr className="border-b border-slate-200">
-                          <th className="px-3 py-2 text-[8pt] font-bold uppercase text-slate-500">Respondente</th>
-                          <th className="px-3 py-2 text-[8pt] font-bold uppercase text-slate-500">Setor</th>
-                          <th className="px-3 py-2 text-[8pt] font-bold uppercase text-slate-500">Data</th>
-                          <th className="px-3 py-2 text-[8pt] font-bold uppercase text-slate-500 text-right">Score</th>
-                          <th className="no-print w-8"></th>
+                      <tr className="border-b border-slate-400">
+                          <th className="py-1 font-bold">Respondente</th>
+                          <th className="py-1 font-bold">Setor</th>
+                          <th className="py-1 font-bold text-right">Score</th>
                       </tr>
                   </thead>
                   <tbody>
-                      {submissions.map(sub => (
-                          <tr key={sub.id} className="border-b border-slate-100 last:border-0">
-                              <td className="px-3 py-1.5 text-[8pt] font-bold text-slate-900">{sub.respondent.name}</td>
-                              <td className="px-3 py-1.5 text-[8pt] text-slate-600">{sub.respondent.sector}</td>
-                              <td className="px-3 py-1.5 text-[8pt] text-slate-500 font-mono">{new Date(sub.timestamp).toLocaleDateString('pt-BR')}</td>
-                              <td className="px-3 py-1.5 text-[8pt] font-bold text-right">
-                                  <span style={{color: sub.result.percentage < 40 ? '#dc2626' : sub.result.percentage < 80 ? '#d97706' : '#059669'}}>
-                                    {sub.result.percentage.toFixed(0)}%
-                                  </span>
-                              </td>
-                              <td className="no-print text-right px-2">
-                                  <button onClick={() => handleDelete(sub.id, sub.respondent.name)} className="text-red-500 text-xs font-bold">✕</button>
-                              </td>
+                      {submissions.slice(0, 10).map(sub => (
+                          <tr key={sub.id} className="border-b border-slate-200">
+                              <td className="py-1">{sub.respondent.name}</td>
+                              <td className="py-1">{sub.respondent.sector}</td>
+                              <td className="py-1 text-right font-bold">{sub.result.percentage.toFixed(0)}%</td>
                           </tr>
                       ))}
                   </tbody>
