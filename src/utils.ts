@@ -1,7 +1,7 @@
 import { AnswersState, AnswerValue, AssessmentResult, MaturityLevel, ActionPlanItem, CategoryData, Submission, RespondentData, TimeFrame, Evidence, EvidencesState } from './types';
 import { CATEGORIES } from './constants';
 import { db, storage, auth } from './firebase';
-import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, writeBatch, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, writeBatch, setDoc, serverTimestamp, getDoc, updateDoc, deleteField } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 
@@ -11,24 +11,20 @@ const DRAFT_KEY = "esg_diagnostic_draft";
 // --- AUTH SYSTEM ---
 
 export const loginUser = async (name: string, pin: string) => {
-  // 1. Create synthetic email
   const cleanName = name.trim().toLowerCase().replace(/\s+/g, '');
   const email = `${cleanName}-${pin}@fake.esg`;
-  const password = `pwd-${pin}-secure`; // Synthetic password based on PIN
+  const password = `pwd-${pin}-secure`;
 
   try {
-    // Try to login
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     return userCredential.user;
   } catch (error: any) {
     if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-      // If not found, create new user
       try {
         const newUserCredential = await createUserWithEmailAndPassword(auth, email, password);
-        // Save user profile to Firestore
         await setDoc(doc(db, 'users', newUserCredential.user.uid), {
           nome: name,
-          senha: pin, // Storing PIN for reference (low security requirement assumed for this POC)
+          senha: pin,
           uid: newUserCredential.user.uid,
           createdAt: serverTimestamp()
         });
@@ -64,8 +60,6 @@ export const calculateScore = (answers: AnswersState): AssessmentResult => {
       } else if (answer === AnswerValue.NO) {
         catMax += 1;
       }
-      // N/A is treated as NO in denominator (maxScore), but 0 in numerator. 
-      // Since N/A option is removed from UI, this logic naturally falls to NO or unselected.
     });
 
     const percentage = catMax > 0 ? (catScore / catMax) * 100 : 0;
@@ -125,7 +119,6 @@ export const clearLocalProgress = () => {
 export const saveAnswerToFirestore = async (uid: string, questionId: string, value: AnswerValue) => {
   if (!uid) return;
   try {
-    // /submissions/{uid}/respostas/{questionId}
     const docRef = doc(db, 'submissions', uid, 'respostas', questionId);
     await setDoc(docRef, {
       resposta: value,
@@ -136,25 +129,13 @@ export const saveAnswerToFirestore = async (uid: string, questionId: string, val
   }
 };
 
-export const saveEvidenceMetadataToFirestore = async (uid: string, questionId: string, metadata: Partial<Evidence>) => {
-    if(!uid) return;
-    try {
-        const docRef = doc(db, 'evidencias', uid, 'itens', questionId);
-        await setDoc(docRef, {
-            ...metadata,
-            updatedAt: serverTimestamp()
-        }, { merge: true });
-    } catch (e) {
-        console.error("Erro ao salvar metadados de evidencia:", e);
-    }
-}
-
 // --- EVIDENCE MANAGEMENT ---
 
 export const uploadEvidence = async (
   uid: string, 
   questionId: string, 
-  file: File
+  file: File,
+  comment?: string
 ): Promise<{ url: string; metadata: Partial<Evidence> }> => {
   
   if (!uid) throw new Error("Usuário não identificado.");
@@ -166,28 +147,75 @@ export const uploadEvidence = async (
   if (file.size > MAX_SIZE) throw new Error("Arquivo excede 1MB.");
   if (!ALLOWED_TYPES.includes(file.type)) throw new Error("Formato inválido. Use JPG, PNG, PDF, DOCX ou XLSX.");
 
-  // 2. Path: evidences/{uid}/{questionId}/{filename}
+  // 2. Check if exists in Firestore
+  const answerDocRef = doc(db, 'submissions', uid, 'respostas', questionId);
+  const docSnap = await getDoc(answerDocRef);
+  
+  if (docSnap.exists() && docSnap.data().evidenciaPath) {
+      throw new Error("Já existe uma evidência. Apague antes de anexar outra.");
+  }
+
+  // 3. Upload Path: evidencias/{uid}/{questionId}/{filename}
   const storagePath = `evidencias/${uid}/${questionId}/${file.name}`;
   const storageRef = ref(storage, storagePath);
 
-  // 3. Upload
+  // 4. Perform Upload
   await uploadBytes(storageRef, file);
   const url = await getDownloadURL(storageRef);
 
-  const metadata = {
+  const metadata: Partial<Evidence> = {
       fileName: file.name,
       fileType: file.type,
       fileSize: file.size,
-      fileUrl: url
+      fileUrl: url,
+      storagePath: storagePath,
+      comment: comment || '',
+      questionId: questionId,
+      timestamp: new Date().toISOString()
   };
 
-  // Save metadata to firestore immediately
-  await saveEvidenceMetadataToFirestore(uid, questionId, metadata);
+  // 5. Save Metadata to Firestore Answer Document
+  await setDoc(answerDocRef, {
+      evidenciaPath: storagePath,
+      evidenciaUrl: url,
+      evidenciaNome: file.name,
+      evidenciaTipo: file.type,
+      comentario: comment || '',
+      atualizadoEm: serverTimestamp()
+  }, { merge: true });
 
   return { url, metadata };
 };
 
+export const deleteEvidence = async (uid: string, questionId: string, storagePath: string) => {
+    if(!uid || !storagePath) return;
+
+    try {
+        // 1. Delete from Storage
+        const storageRef = ref(storage, storagePath);
+        await deleteObject(storageRef);
+
+        // 2. Update Firestore
+        const answerDocRef = doc(db, 'submissions', uid, 'respostas', questionId);
+        await updateDoc(answerDocRef, {
+            evidenciaPath: deleteField(),
+            evidenciaUrl: deleteField(),
+            evidenciaNome: deleteField(),
+            evidenciaTipo: deleteField(),
+            // We might keep the comment or delete it? Prompt implies removing evidence association.
+            // Let's keep comment if it was separate, but usually they go together.
+            // For now, let's remove the evidence fields to clear the badge.
+            atualizadoEm: serverTimestamp()
+        });
+        
+    } catch (e) {
+        console.error("Erro ao deletar evidência:", e);
+        throw new Error("Falha ao remover arquivo.");
+    }
+};
+
 export const deleteEvidenceFile = async (fileUrl: string) => {
+    // Legacy helper kept for compatibility if needed, but deleteEvidence is preferred
     try {
         const storageRef = ref(storage, fileUrl);
         await deleteObject(storageRef);
@@ -196,12 +224,54 @@ export const deleteEvidenceFile = async (fileUrl: string) => {
     }
 };
 
+export const fetchRespondentProgress = async (uid: string): Promise<{ answers: AnswersState, evidences: EvidencesState }> => {
+    const answers: AnswersState = {};
+    const evidences: EvidencesState = {};
+    
+    try {
+        const q = query(collection(db, 'submissions', uid, 'respostas'));
+        const snapshot = await getDocs(q);
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const qId = doc.id;
+            
+            if (data.resposta) {
+                answers[qId] = data.resposta as AnswerValue;
+            }
+            
+            if (data.evidenciaPath && data.evidenciaUrl) {
+                evidences[qId] = {
+                    questionId: qId,
+                    comment: data.comentario || '',
+                    fileUrl: data.evidenciaUrl,
+                    fileName: data.evidenciaNome,
+                    fileType: data.evidenciaTipo,
+                    storagePath: data.evidenciaPath,
+                    timestamp: data.atualizadoEm?.toDate?.().toISOString() || new Date().toISOString()
+                };
+            } else if (data.comentario) {
+                // If only comment exists
+                evidences[qId] = {
+                    questionId: qId,
+                    comment: data.comentario,
+                    timestamp: new Date().toISOString()
+                };
+            }
+        });
+    } catch (e) {
+        console.error("Erro ao recuperar progresso:", e);
+    }
+    
+    return { answers, evidences };
+};
+
 // --- SUBMISSION ---
 
 export interface SaveResult {
-    savedToCloud: boolean;
-    savedLocal: boolean;
-    error?: string;
+  savedToCloud: boolean;
+  savedLocal: boolean;
+  error?: string;
 }
 
 export const saveSubmission = async (
@@ -211,25 +281,20 @@ export const saveSubmission = async (
     result: AssessmentResult
 ): Promise<SaveResult> => {
   
-  // Use UID as document ID if available, else random
   const docId = respondent.uid || crypto.randomUUID();
   
   const submission = {
     id: docId,
     timestamp: new Date().toISOString(),
     respondent,
-    answers, // We keep the aggregate here for easy Admin Dashboard reading
-    evidences, // Metadata
+    answers, 
+    evidences, 
     result
   };
 
   try {
-    // 1. Save to Firestore (Overwrite if exists to update final status)
     await setDoc(doc(db, COLLECTION_NAME, docId), submission);
-    
-    // 2. Clear Local Draft
     clearLocalProgress();
-
     return { savedToCloud: true, savedLocal: false };
   } catch (err: any) {
     console.error("Erro ao salvar no Firebase:", err);
@@ -292,6 +357,7 @@ type MaturityActions = Record<'CRITICAL' | 'REGULAR' | 'EXCELLENT', Record<TimeF
 
 // Define unique actions for each category to avoid repetition
 const CATEGORY_ACTIONS: Record<string, MaturityActions> = {
+  // ... (keeping existing categories mapping logic same as before to save space in this output block if unchanged, assume same constant) ...
   'legislacao': {
     CRITICAL: {
       '1 Mês': { title: 'Diagnóstico Jurídico', desc: 'Levantar todas as leis ambientais municipais faltantes ou obsoletas.', priority: 'Alta' },
@@ -407,7 +473,6 @@ const CATEGORY_ACTIONS: Record<string, MaturityActions> = {
       '5 Anos': { title: 'Referência Global', desc: 'Ser case de estudo em fóruns mundiais de gestão pública.', priority: 'Baixa' }
     }
   },
-  // Fallback for categories not explicitly detailed above (using a improved generic template)
   'default': {
     CRITICAL: {
       '1 Mês': { title: 'Diagnóstico de Crise', desc: 'Identificar as causas raiz do baixo desempenho em {cat}.', priority: 'Alta' },
@@ -436,22 +501,19 @@ const CATEGORY_ACTIONS: Record<string, MaturityActions> = {
 const generateActionsForCategory = (cat: CategoryData, pct: number): ActionPlanItem[] => {
   const actions: ActionPlanItem[] = [];
   
-  // Determine Maturity Level
   let maturity: 'CRITICAL' | 'REGULAR' | 'EXCELLENT' = 'CRITICAL';
   if (pct >= 80) maturity = 'EXCELLENT';
   else if (pct >= 40) maturity = 'REGULAR';
 
-  // Find specific templates for this category ID, or fallback to 'default'
   const catId = cat.id;
   const specificTemplates = CATEGORY_ACTIONS[catId] || CATEGORY_ACTIONS['default'];
-  const maturityTemplates = specificTemplates[maturity] || CATEGORY_ACTIONS['default'][maturity]; // Fallback safety
+  const maturityTemplates = specificTemplates[maturity] || CATEGORY_ACTIONS['default'][maturity];
 
   const cleanCatTitle = cat.title.includes('. ') ? cat.title.split('. ')[1] : cat.title;
 
   (['1 Mês', '3 Meses', '6 Meses', '1 Ano', '5 Anos'] as TimeFrame[]).forEach(timeframe => {
     const template = maturityTemplates[timeframe];
     
-    // Determine responsible based on timeframe logic (can be customized per category later if needed)
     let responsible = 'Equipe Técnica';
     if (timeframe === '1 Mês') responsible = 'Gestão / Gabinete';
     else if (timeframe === '3 Meses') responsible = 'Coordenação Setorial';
@@ -459,7 +521,6 @@ const generateActionsForCategory = (cat: CategoryData, pct: number): ActionPlanI
     else if (timeframe === '1 Ano') responsible = 'Secretaria Executiva';
     else if (timeframe === '5 Anos') responsible = 'Prefeito / Conselho';
 
-    // If using default template, replace {cat} placeholder. If specific, text is already perfect.
     const title = template.title.replace('{cat}', cleanCatTitle);
     const desc = template.desc.replace('{cat}', cleanCatTitle);
 
@@ -481,7 +542,6 @@ const generateActionsForCategory = (cat: CategoryData, pct: number): ActionPlanI
 export const generateFullActionPlan = (result: AssessmentResult): ActionPlanItem[] => {
   let allActions: ActionPlanItem[] = [];
 
-  // Sort categories by lowest score first to prioritize urgent needs
   const sortedCategories = [...CATEGORIES].sort((a, b) => {
     const scoreA = result.categoryScores[a.id]?.percentage || 0;
     const scoreB = result.categoryScores[b.id]?.percentage || 0;

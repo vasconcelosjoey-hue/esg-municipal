@@ -50,6 +50,7 @@ export interface Evidence {
   fileType?: string;
   fileSize?: number;
   timestamp: string;
+  storagePath?: string; // Caminho no Storage para remoção
 }
 
 export interface AssessmentResult {

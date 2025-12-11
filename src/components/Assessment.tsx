@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { CATEGORIES } from '../constants';
 import { AnswerValue, AnswersState, EvidencesState, RespondentData } from '../types';
-import { uploadEvidence, saveDraft, deleteEvidenceFile, saveAnswerToFirestore } from '../utils';
+import { uploadEvidence, saveDraft, deleteEvidence, saveAnswerToFirestore, fetchRespondentProgress } from '../utils';
 
 interface Props {
   answers: AnswersState;
@@ -18,9 +18,20 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [expandedEvidenceId, setExpandedEvidenceId] = useState<string | null>(null);
   const [autosaveStatus, setAutosaveStatus] = useState<'saved' | 'saving'>('saved');
-  // const [tempSubmissionId] = useState(() => crypto.randomUUID()); // Removed: Use respondent.uid
+  const [previewEvidence, setPreviewEvidence] = useState<{ url: string, type: string, name: string } | null>(null);
 
   const allQuestionIds = useRef<string[]>(CATEGORIES.flatMap(c => c.questions.map(q => q.id)));
+
+  // Load Progress from Firestore
+  useEffect(() => {
+      if (respondent.uid) {
+          fetchRespondentProgress(respondent.uid).then(progress => {
+              // Merge with current state (prefer remote if newer or exist)
+              Object.entries(progress.answers).forEach(([k, v]) => onAnswerChange(k, v));
+              Object.entries(progress.evidences).forEach(([k, v]) => onEvidenceChange(k, v));
+          });
+      }
+  }, [respondent.uid]);
 
   // Trigger Local Autosave on changes
   useEffect(() => {
@@ -46,7 +57,7 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
   const handleOptionSelect = (questionId: string, value: AnswerValue) => {
       onAnswerChange(questionId, value);
       
-      // REALTIME CLOUD SAVE (Prompt 2)
+      // REALTIME CLOUD SAVE
       if (respondent.uid) {
           saveAnswerToFirestore(respondent.uid, questionId, value);
       }
@@ -55,15 +66,12 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
           setMissingIds(prev => prev.filter(id => id !== questionId));
       }
 
-      // Robust Auto-scroll logic
       const currentIndex = allQuestionIds.current.indexOf(questionId);
       if (currentIndex !== -1 && currentIndex < allQuestionIds.current.length - 1) {
           const nextQuestionId = allQuestionIds.current[currentIndex + 1];
-          // Use setTimeout to allow state update and potential UI re-render
           setTimeout(() => {
               const nextEl = document.getElementById(`question-${nextQuestionId}`);
               if (nextEl) {
-                  // Ensure we scroll the element into view centered
                   nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
               }
           }, 300); 
@@ -76,31 +84,44 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
           return;
       }
 
+      // Check local state first to prevent unnecessary calls
+      if (evidences[questionId]?.fileUrl) {
+          alert("Já existe uma evidência. Apague antes de anexar outra.");
+          return;
+      }
+
       setUploadingId(questionId);
       try {
-          // Use Auth UID for path (Prompt 3)
-          const { url, metadata } = await uploadEvidence(respondent.uid, questionId, file);
-          const currentEvidence = evidences[questionId] || { questionId, comment: '', timestamp: new Date().toISOString() };
+          const comment = evidences[questionId]?.comment;
+          const { url, metadata } = await uploadEvidence(respondent.uid, questionId, file, comment);
           
           onEvidenceChange(questionId, {
-              ...currentEvidence,
-              fileUrl: url,
+              ...evidences[questionId],
               ...metadata
           });
+          
+          alert("✔ Evidência anexada com sucesso.");
       } catch (error: any) {
-          alert(`Erro no upload: ${error.message}`);
+          alert(`Falha ao enviar arquivo. Tente novamente.\n${error.message}`);
       } finally {
           setUploadingId(null);
       }
   };
 
   const handleRemoveFile = async (questionId: string) => {
-      if (!confirm("Remover este arquivo?")) return;
+      if (!confirm("Tem certeza que deseja remover esta evidência?")) return;
+      
       const ev = evidences[questionId];
-      if (ev?.fileUrl) {
-           await deleteEvidenceFile(ev.fileUrl);
-           const { fileUrl, fileName, fileType, fileSize, ...rest } = ev;
-           onEvidenceChange(questionId, rest);
+      if (ev?.storagePath && respondent.uid) {
+           try {
+               await deleteEvidence(respondent.uid, questionId, ev.storagePath);
+               const { fileUrl, fileName, fileType, fileSize, storagePath, ...rest } = ev;
+               // Keep comment if user wants, or clear it. Let's keep it but remove file data.
+               onEvidenceChange(questionId, { ...rest, timestamp: new Date().toISOString() });
+               alert("❌ Evidência removida.");
+           } catch (e: any) {
+               alert(e.message);
+           }
       }
   };
 
@@ -111,6 +132,19 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
 
   const toggleEvidence = (id: string) => {
       setExpandedEvidenceId(prev => prev === id ? null : id);
+  };
+
+  const handlePreview = (url: string, type: string = '', name: string) => {
+      if (type.includes('image') || type.includes('pdf')) {
+          if (type.includes('pdf')) {
+              window.open(url, '_blank');
+          } else {
+              setPreviewEvidence({ url, type, name });
+          }
+      } else {
+          alert("Preview indisponível para este formato. Por favor, faça o download.");
+          window.open(url, '_blank');
+      }
   };
 
   const handleFinishAttempt = () => {
@@ -162,6 +196,17 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
           {autosaveStatus === 'saving' ? 'Salvando...' : 'Salvo na Nuvem'}
       </div>
 
+      {/* Preview Modal */}
+      {previewEvidence && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black bg-opacity-90 p-4" onClick={() => setPreviewEvidence(null)}>
+              <div className="relative max-w-4xl max-h-[90vh] w-full flex flex-col items-center">
+                  <button onClick={() => setPreviewEvidence(null)} className="absolute -top-10 right-0 text-white font-bold text-xl hover:text-red-400">Fechar ✕</button>
+                  <img src={previewEvidence.url} alt="Preview" className="max-w-full max-h-[85vh] rounded-lg shadow-2xl" />
+                  <p className="text-white mt-2 font-bold">{previewEvidence.name}</p>
+              </div>
+          </div>
+      )}
+
       {/* Floating Progress Bubble */}
       <div className="fixed bottom-6 left-4 sm:left-8 z-[70] animate-fade-in-up print:hidden">
         <div className="relative group cursor-default">
@@ -197,7 +242,8 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
             {category.questions.map((q) => {
               const isMissing = missingIds.includes(q.id) && !answers[q.id];
               globalQuestionCounter++;
-              const hasEvidence = evidences[q.id] && (evidences[q.id].comment || evidences[q.id].fileUrl);
+              const hasEvidence = evidences[q.id] && evidences[q.id].fileUrl;
+              const evidenceData = evidences[q.id];
               const isExpanded = expandedEvidenceId === q.id;
 
               return (
@@ -211,15 +257,24 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
                                 {isMissing && <span className="block mt-1 text-xs font-bold text-red-600 bg-red-100 w-fit px-2 py-1 rounded uppercase tracking-wide animate-pulse">Resposta Obrigatória</span>}
                             </p>
                             
-                            {/* Evidence Toggle Button */}
+                            {/* Evidence Toggle Button with Badge */}
                             <button 
                                 onClick={() => toggleEvidence(q.id)}
-                                className={`text-xs font-bold flex items-center gap-1 transition-colors px-2 py-1 rounded ${hasEvidence ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 hover:text-emerald-600'}`}
+                                className={`text-xs font-bold flex items-center gap-2 transition-all px-3 py-2 rounded-lg border ${hasEvidence ? 'text-emerald-700 bg-emerald-50 border-emerald-200 shadow-sm' : 'text-slate-500 bg-white border-slate-200 hover:border-emerald-300 hover:text-emerald-600'}`}
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                                </svg>
-                                {hasEvidence ? 'Evidência Anexada' : 'Adicionar Evidência (Opcional)'}
+                                {hasEvidence ? (
+                                    <>
+                                        <span className="flex items-center justify-center w-5 h-5 bg-emerald-600 text-white rounded-full text-[10px]">✔</span>
+                                        <span>Evidência Anexada</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                                        </svg>
+                                        <span>Adicionar Evidência (Opcional)</span>
+                                    </>
+                                )}
                             </button>
                         </div>
                       </div>
@@ -245,51 +300,76 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
 
                   {/* Evidence Section (Accordion) */}
                   {isExpanded && (
-                      <div className="mt-4 ml-10 bg-slate-50 border border-slate-200 rounded-lg p-4 animate-fade-in">
-                          <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Comentários / Justificativa</label>
+                      <div className="mt-4 ml-10 bg-slate-50 border border-slate-200 rounded-xl p-5 animate-fade-in shadow-inner">
+                          <label className="block text-xs font-bold text-slate-500 uppercase mb-2 tracking-wide">Comentários / Justificativa</label>
                           <textarea 
-                              className="w-full p-3 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none resize-none mb-4"
+                              className="w-full p-3 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none resize-none mb-4 bg-white"
                               rows={3}
                               placeholder="Descreva a evidência ou justifique a resposta..."
                               value={evidences[q.id]?.comment || ''}
                               onChange={(e) => handleCommentChange(q.id, e.target.value)}
                           />
                           
-                          <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                  {evidences[q.id]?.fileUrl ? (
-                                      <div className="flex items-center gap-3 bg-white border border-emerald-200 p-2 rounded-lg w-fit">
-                                          <div className="bg-emerald-100 text-emerald-600 p-2 rounded">
-                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" /></svg>
+                          <div className="border-t border-slate-200 pt-4">
+                              {hasEvidence ? (
+                                  <div className="bg-white border border-emerald-200 rounded-lg p-3 flex items-center justify-between shadow-sm">
+                                      <div className="flex items-center gap-3 overflow-hidden">
+                                          <div className="bg-emerald-100 text-emerald-600 p-2.5 rounded-lg shrink-0">
+                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" /></svg>
                                           </div>
-                                          <div className="text-sm">
-                                              <p className="font-bold text-slate-700 truncate max-w-[150px]">{evidences[q.id]?.fileName}</p>
-                                              <p className="text-xs text-slate-400">{(evidences[q.id]!.fileSize! / 1024).toFixed(1)} KB</p>
+                                          <div className="min-w-0">
+                                              <p className="font-bold text-slate-800 text-sm truncate" title={evidenceData?.fileName}>{evidenceData?.fileName}</p>
+                                              <p className="text-xs text-slate-400">{(evidenceData?.fileSize! / 1024).toFixed(1)} KB • Enviado</p>
                                           </div>
-                                          <button onClick={() => handleRemoveFile(q.id)} className="text-red-400 hover:text-red-600 p-1">
-                                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                                      </div>
+                                      <div className="flex items-center gap-2 shrink-0 ml-2">
+                                          <button 
+                                            onClick={() => handlePreview(evidenceData?.fileUrl!, evidenceData?.fileType, evidenceData?.fileName!)}
+                                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors text-xs font-bold flex flex-col items-center"
+                                            title="Visualizar"
+                                          >
+                                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                              
+                                          </button>
+                                          <div className="h-8 w-px bg-slate-200"></div>
+                                          <button 
+                                            onClick={() => handleRemoveFile(q.id)} 
+                                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors text-xs font-bold flex flex-col items-center"
+                                            title="Remover Evidência"
+                                          >
+                                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                              
                                           </button>
                                       </div>
-                                  ) : (
-                                      <div className="relative">
-                                          <input 
-                                              type="file" 
-                                              id={`file-${q.id}`} 
-                                              className="hidden" 
-                                              accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx"
-                                              onChange={(e) => e.target.files?.[0] && handleFileUpload(q.id, e.target.files[0])}
-                                              disabled={!!uploadingId}
-                                          />
-                                          <label 
-                                              htmlFor={`file-${q.id}`}
-                                              className={`flex items-center gap-2 cursor-pointer text-sm font-bold px-4 py-2 rounded-lg border transition-all ${uploadingId === q.id ? 'bg-slate-100 text-slate-400' : 'bg-white text-emerald-600 border-emerald-200 hover:bg-emerald-50'}`}
-                                          >
-                                              {uploadingId === q.id ? 'Enviando...' : '📎 Anexar Arquivo (Max 1MB)'}
-                                          </label>
-                                          <p className="text-[10px] text-slate-400 mt-1 ml-1">PDF, JPG, PNG, DOCX, XLSX</p>
-                                      </div>
-                                  )}
-                              </div>
+                                  </div>
+                              ) : (
+                                  <div className="relative group">
+                                      <input 
+                                          type="file" 
+                                          id={`file-${q.id}`} 
+                                          className="hidden" 
+                                          accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx"
+                                          onChange={(e) => e.target.files?.[0] && handleFileUpload(q.id, e.target.files[0])}
+                                          disabled={!!uploadingId}
+                                      />
+                                      <label 
+                                          htmlFor={`file-${q.id}`}
+                                          className={`flex items-center justify-center gap-3 cursor-pointer p-4 rounded-xl border-2 border-dashed transition-all ${uploadingId === q.id ? 'bg-slate-100 border-slate-300' : 'bg-white border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50/30'}`}
+                                      >
+                                          <div className={`p-3 rounded-full ${uploadingId === q.id ? 'bg-slate-200' : 'bg-emerald-100 group-hover:bg-emerald-200 transition-colors'}`}>
+                                              {uploadingId === q.id ? (
+                                                  <svg className="animate-spin h-6 w-6 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                              ) : (
+                                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                                              )}
+                                          </div>
+                                          <div className="text-left">
+                                              <p className="font-bold text-slate-700 text-sm">{uploadingId === q.id ? 'Enviando arquivo...' : 'Clique para selecionar arquivo'}</p>
+                                              <p className="text-xs text-slate-400 mt-0.5">PDF, JPG, PNG, DOCX, XLSX (Max 1MB)</p>
+                                          </div>
+                                      </label>
+                                  </div>
+                              )}
                           </div>
                       </div>
                   )}
