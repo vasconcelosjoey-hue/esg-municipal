@@ -1,22 +1,14 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore, initializeFirestore } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 
-// Configuration provided explicitly for the test environment
 export const firebaseConfig = {
-  apiKey: "AIzaSyBkae_xIIVml6KqZ7eZyF3zC7HcjRac4Fc",
-  authDomain: "esg-municipal.firebaseapp.com",
-  projectId: "esg-municipal",
-  storageBucket: "esg-municipal.firebasestorage.app",
-  messagingSenderId: "873938470656",
-  appId: "1:873938470656:web:8af3c94608afd87e5755e5"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-const app = initializeApp(firebaseConfig);
-
-// Initialize Firestore with settings optimized for mobile networks/stability
-// experimentalForceLongPolling helps avoid websocket issues on some 4G/5G networks
-const db = initializeFirestore(app, {
-    experimentalForceLongPolling: true,
-});
-
-export { db, app };
+export const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app);
