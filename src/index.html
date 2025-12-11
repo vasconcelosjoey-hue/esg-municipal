@@ -6,16 +6,16 @@
     <title>ESG Municipal Diagnostic</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-      @import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700;900&display=swap'); /* Fonte Serifada para Títulos Premium */
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
       
       body {
         font-family: 'Inter', sans-serif;
+        color: #1e293b; /* Slate-800 */
       }
       
       @media print {
         @page {
-          margin: 10mm 14mm; /* Margens Premium solicitadas */
+          margin: 10mm;
           size: A4;
         }
         
@@ -23,90 +23,98 @@
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
           background-color: white !important;
-          color: #111827 !important; /* Slate-900 absolute black */
+          font-size: 9pt; /* Base font size for corporate reports */
         }
 
-        /* --- TYPOGRAPHY HIERARCHY (McKinsey Style) --- */
-        .print-title-main {
-            font-family: 'Merriweather', serif;
-            font-size: 24pt !important;
-            font-weight: 900 !important;
-            line-height: 1.1 !important;
-            color: #0f172a !important;
-            letter-spacing: -0.5px;
-        }
+        /* --- CORPORATE STYLE UTILITIES (Accenture/Gartner) --- */
         
-        .print-title-section {
-            font-family: 'Inter', sans-serif;
-            font-size: 14pt !important;
-            font-weight: 700 !important;
+        .corp-header-main {
+            font-size: 20pt;
+            font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            border-bottom: 2px solid #000;
-            padding-bottom: 4px;
+            letter-spacing: -0.5px;
+            color: #0f172a;
+            line-height: 1.1;
+            margin-bottom: 2px;
+        }
+
+        .corp-header-sub {
+            font-size: 10pt;
+            font-weight: 500;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .corp-section-title {
+            font-size: 12pt;
+            font-weight: 700;
+            color: #0f172a;
+            text-transform: uppercase;
+            border-left: 4px solid #0f172a;
+            padding-left: 8px;
             margin-bottom: 8px;
-            margin-top: 12px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
         }
 
-        .print-subtitle {
-            font-size: 11pt !important;
-            font-weight: 600 !important;
-            color: #334155 !important;
-            margin-bottom: 4px;
+        .corp-card {
+            border: 1px solid #e2e8f0;
+            padding: 10px;
+            background: white;
+            break-inside: avoid;
+            margin-bottom: 8px;
         }
 
-        .print-text {
-            font-size: 9pt !important;
-            line-height: 1.3 !important;
-            color: #1e293b !important;
-            text-align: justify;
+        .corp-grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .corp-grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .corp-grid-header {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 16px;
+            margin-bottom: 16px;
+            align-items: stretch;
         }
         
-        .print-caption {
-            font-size: 8pt !important;
-            color: #64748b !important;
+        .corp-badge {
+            font-size: 7pt;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 2px 6px;
+            border-radius: 2px;
+            display: inline-block;
         }
 
-        /* --- LAYOUT UTILITIES --- */
+        /* Helper to force charts */
+        .chart-container {
+            width: 100% !important;
+            height: 180px !important; 
+        }
+
+        /* Clean UI */
         .no-print { display: none !important; }
-        .print-break-inside-avoid { break-inside: avoid; }
-        
-        /* Remove UI noise */
-        .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl { box-shadow: none !important; }
-        .rounded-2xl, .rounded-3xl, .rounded-xl, .rounded-lg { border-radius: 0px !important; }
-        .bg-slate-50, .bg-slate-100 { background-color: white !important; }
         button { display: none !important; }
-
-        /* --- GRID SYSTEM --- */
-        .print-grid-exec {
-            display: grid !important;
-            grid-template-columns: 1fr 1fr !important;
-            gap: 20px !important;
-            align-items: start;
-        }
-
-        .print-grid-3 {
-            display: grid !important;
-            grid-template-columns: repeat(3, 1fr) !important;
-            gap: 12px !important;
-        }
-
-        .print-grid-5 {
-            display: grid !important;
-            grid-template-columns: repeat(5, 1fr) !important;
-            gap: 8px !important;
-        }
-
-        /* Border Cleanups */
-        .print-border { border: 1px solid #e2e8f0 !important; }
-        .print-border-b { border-bottom: 1px solid #e2e8f0 !important; }
-        .print-no-border { border: none !important; }
-
-        /* Specific Component Overrides */
-        .recharts-wrapper { margin: 0 auto !important; }
+        .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl { box-shadow: none !important; }
+        .rounded-2xl, .rounded-xl, .rounded-lg { border-radius: 2px !important; }
+        
+        /* Reset spacing */
+        .p-4, .p-6, .p-8 { padding: 8px !important; }
+        .gap-4, .gap-6, .gap-8 { gap: 8px !important; }
+        .mb-4, .mb-6, .mb-8 { margin-bottom: 8px !important; }
       }
 
-      /* Web Animations (kept for screen) */
+      /* Web Animations */
       @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-20px); } 100% { transform: translateY(0px); } }
       .animate-float { animation: float 6s ease-in-out infinite; }
       .animate-fade-in { animation: fadeInUp 0.5s ease-out forwards; }

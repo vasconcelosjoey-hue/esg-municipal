@@ -98,14 +98,6 @@ const AdminDashboard: React.FC = () => {
     return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
   }, [submissions]);
 
-  const timeframeColors: Record<TimeFrame, string> = {
-      '1 Mês': 'border-red-500 bg-red-50 text-red-900',
-      '3 Meses': 'border-orange-500 bg-orange-50 text-orange-900',
-      '6 Meses': 'border-amber-500 bg-amber-50 text-amber-900',
-      '1 Ano': 'border-blue-500 bg-blue-50 text-blue-900',
-      '5 Anos': 'border-indigo-500 bg-indigo-50 text-indigo-900',
-  };
-
   if (loading) return <div className="p-10 text-center">Carregando...</div>;
   if (selectedSubmission) return <div className="animate-fade-in"><button onClick={() => setSelectedSubmission(null)} className="no-print mb-4 px-4 py-2 border rounded">Voltar</button><Dashboard result={selectedSubmission.result} respondentData={selectedSubmission.respondent} /></div>;
   if (submissions.length === 0) return <div className="p-10 text-center">Sem dados. <button onClick={handleRefresh}>Atualizar</button></div>;
@@ -126,55 +118,55 @@ const AdminDashboard: React.FC = () => {
       <div className="print:block">
           
           {/* HEADER */}
-          <div className="hidden print:flex justify-between items-end border-b-4 border-slate-900 pb-4 mb-6">
+          <div className="hidden print:flex justify-between items-start border-b-2 border-slate-200 pb-4 mb-6">
               <div>
-                  <h1 className="print-title-main">Relatório Gerencial Consolidado</h1>
-                  <p className="print-subtitle mt-2 text-slate-500">Visão Sistêmica & Indicadores de Performance</p>
+                  <h1 className="corp-header-main">Relatório Gerencial Consolidado</h1>
+                  <p className="corp-header-sub">Visão Sistêmica de Performance</p>
               </div>
               <div className="text-right">
-                  <div className="print-caption font-bold uppercase">Prefeitura Municipal</div>
-                  <div className="print-caption">{new Date().toLocaleDateString('pt-BR')}</div>
+                  <div className="text-[9pt] font-bold uppercase text-slate-900">Prefeitura Municipal</div>
+                  <div className="text-[8pt] text-slate-500">{new Date().toLocaleDateString('pt-BR')}</div>
               </div>
           </div>
 
           {/* KEY METRICS GRID */}
-          <div className="print-grid-3 mb-6">
-              <div className="print-border p-3 bg-slate-50">
-                  <div className="print-caption uppercase font-bold text-slate-400">Diagnósticos</div>
-                  <div className="text-3xl font-serif font-black text-slate-900">{submissions.length}</div>
+          <div className="corp-grid-3 mb-6">
+              <div className="corp-card bg-slate-50">
+                  <div className="text-[8pt] font-bold text-slate-400 uppercase tracking-wider mb-1">Diagnósticos</div>
+                  <div className="text-3xl font-black text-slate-900">{submissions.length}</div>
               </div>
-              <div className="print-border p-3 bg-slate-50">
-                  <div className="print-caption uppercase font-bold text-slate-400">Média Global</div>
-                  <div className="text-3xl font-serif font-black text-slate-900">{aggregateResult?.percentage.toFixed(0)}%</div>
+              <div className="corp-card bg-slate-50">
+                  <div className="text-[8pt] font-bold text-slate-400 uppercase tracking-wider mb-1">Média Global</div>
+                  <div className="text-3xl font-black text-slate-900">{aggregateResult?.percentage.toFixed(0)}%</div>
               </div>
-              <div className="print-border p-3 bg-slate-50">
-                  <div className="print-caption uppercase font-bold text-slate-400">Setor +Engajado</div>
-                  <div className="text-xl font-bold text-slate-900 mt-1">{sectorData[0]?.name || '-'}</div>
+              <div className="corp-card bg-slate-50">
+                  <div className="text-[8pt] font-bold text-slate-400 uppercase tracking-wider mb-1">Maior Engajamento</div>
+                  <div className="text-xl font-bold text-slate-900 mt-1 truncate">{sectorData[0]?.name || '-'}</div>
               </div>
           </div>
 
-          {/* CHARTS ROW (Compact) */}
-          <div className="print-grid-exec mb-6 h-[180px]">
-              <div className="print-border p-3 h-full">
-                  <h3 className="print-subtitle mb-2">Engajamento por Setor</h3>
-                  <div className="h-[130px] w-full">
-                    <ResponsiveContainer>
-                        <BarChart layout="vertical" data={sectorData} margin={{top:0, bottom:0}}>
-                            <CartesianGrid horizontal={true} vertical={false} strokeDasharray="3 3"/>
+          {/* CHARTS ROW (Side by Side 50/50) */}
+          <div className="corp-grid-2 mb-6">
+              <div className="corp-card">
+                  <h3 className="corp-section-title text-[10pt] mb-2 border-none pl-0">Participação por Setor</h3>
+                  <div className="chart-container">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart layout="vertical" data={sectorData} margin={{top:0, bottom:0, right: 10, left: 0}}>
+                            <CartesianGrid horizontal={true} vertical={false} strokeDasharray="3 3" stroke="#e2e8f0"/>
                             <XAxis type="number" hide />
-                            <YAxis dataKey="name" type="category" width={80} tick={{fontSize: 9}} axisLine={false} tickLine={false} />
+                            <YAxis dataKey="name" type="category" width={80} tick={{fontSize: 9, fill: '#64748b'}} axisLine={false} tickLine={false} />
                             <Bar dataKey="value" fill="#3b82f6" barSize={12} radius={[0,2,2,0]} />
                         </BarChart>
                     </ResponsiveContainer>
                   </div>
               </div>
-              <div className="print-border p-3 h-full">
-                  <h3 className="print-subtitle mb-2">Maturidade por Eixo</h3>
-                  <div className="h-[130px] w-full">
-                     <ResponsiveContainer>
+              <div className="corp-card">
+                  <h3 className="corp-section-title text-[10pt] mb-2 border-none pl-0">Maturidade por Eixo</h3>
+                  <div className="chart-container">
+                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={Object.entries(aggregateResult?.categoryScores || {}).map(([k,v]) => ({name:k, score:v.percentage}))}>
-                            <CartesianGrid vertical={false} strokeDasharray="3 3"/>
-                            <XAxis dataKey="name" tick={{fontSize: 8}} interval={0} tickFormatter={(v)=>v.substring(0,3).toUpperCase()} axisLine={false} tickLine={false} />
+                            <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#e2e8f0"/>
+                            <XAxis dataKey="name" tick={{fontSize: 8, fill: '#64748b'}} interval={0} tickFormatter={(v)=>v.substring(0,3).toUpperCase()} axisLine={false} tickLine={false} />
                             <YAxis hide domain={[0,100]} />
                             <Bar dataKey="score" fill="#059669" barSize={20} radius={[2,2,0,0]}>
                                 {Object.entries(aggregateResult?.categoryScores || {}).map((e,i) => (
@@ -187,31 +179,30 @@ const AdminDashboard: React.FC = () => {
               </div>
           </div>
 
-          {/* AGGREGATE ACTION PLAN (5 COLUMNS STRIP) */}
+          {/* AGGREGATE ACTION PLAN (Grid of columns) */}
           <div className="mb-6">
-             <h2 className="print-title-section">Plano de Ação Integrado</h2>
-             <div className="print-grid-5">
+             <h2 className="corp-section-title">Plano de Ação Integrado</h2>
+             <div className="corp-grid-3"> 
+             {/* Using Grid-3 for better readability than Grid-5 on vertical A4, allowing wrap if needed, but let's try compact lists */}
                  {(['1 Mês', '3 Meses', '6 Meses', '1 Ano', '5 Anos'] as TimeFrame[]).map(tf => {
                      const actions = groupedAggregateActions[tf] || [];
-                     const colorClass = timeframeColors[tf];
-                     // Show max 5 items to keep it compact
-                     const displayActions = actions.slice(0, 5);
+                     const displayActions = actions.slice(0, 4);
                      
                      return (
-                         <div key={tf} className="print-border h-full flex flex-col">
-                             <div className={`text-center py-1 font-bold text-[8pt] uppercase tracking-wider border-b ${colorClass} bg-opacity-20`}>
+                         <div key={tf} className="corp-card border-t-2 border-t-slate-800">
+                             <div className="font-bold text-[9pt] uppercase text-slate-800 mb-2 border-b border-slate-100 pb-1">
                                  {tf}
                              </div>
-                             <div className="p-1 space-y-1 bg-white flex-1">
+                             <div className="space-y-2">
                                  {displayActions.map((act, i) => (
-                                     <div key={i} className="border-b border-slate-100 pb-1 last:border-0">
-                                         <div className="font-bold text-[7pt] text-slate-900 leading-tight">{act.title}</div>
-                                         <div className="text-[6pt] text-slate-500 leading-none truncate">{act.description}</div>
+                                     <div key={i}>
+                                         <div className="font-bold text-[8pt] text-slate-900 leading-tight">{act.title}</div>
+                                         <div className="text-[7pt] text-slate-500 leading-tight truncate">{act.description}</div>
                                      </div>
                                  ))}
-                                 {actions.length > 5 && (
-                                     <div className="text-center bg-slate-800 text-white text-[7pt] font-bold rounded py-0.5 mt-1">
-                                         +{actions.length - 5} OUTROS
+                                 {actions.length > 4 && (
+                                     <div className="text-[7pt] font-bold text-slate-400 italic mt-1">
+                                         + {actions.length - 4} ações adicionais
                                      </div>
                                  )}
                              </div>
@@ -221,30 +212,34 @@ const AdminDashboard: React.FC = () => {
              </div>
           </div>
 
-          {/* COMPACT TABLE */}
-          <div>
-              <h2 className="print-title-section">Registros Individuais</h2>
+          {/* TABLE */}
+          <div className="corp-card p-0 overflow-hidden">
+              <div className="bg-slate-50 px-3 py-2 border-b border-slate-200">
+                  <h3 className="text-[9pt] font-bold uppercase text-slate-700">Registros Individuais</h3>
+              </div>
               <table className="w-full text-left border-collapse">
                   <thead>
-                      <tr className="border-b-2 border-slate-800">
-                          <th className="py-1 text-[8pt] font-bold uppercase text-slate-600">Respondente</th>
-                          <th className="py-1 text-[8pt] font-bold uppercase text-slate-600">Setor</th>
-                          <th className="py-1 text-[8pt] font-bold uppercase text-slate-600">Data</th>
-                          <th className="py-1 text-[8pt] font-bold uppercase text-slate-600 text-right">Score</th>
-                          <th className="no-print w-10"></th>
+                      <tr className="border-b border-slate-200">
+                          <th className="px-3 py-2 text-[8pt] font-bold uppercase text-slate-500">Respondente</th>
+                          <th className="px-3 py-2 text-[8pt] font-bold uppercase text-slate-500">Setor</th>
+                          <th className="px-3 py-2 text-[8pt] font-bold uppercase text-slate-500">Data</th>
+                          <th className="px-3 py-2 text-[8pt] font-bold uppercase text-slate-500 text-right">Score</th>
+                          <th className="no-print w-8"></th>
                       </tr>
                   </thead>
                   <tbody>
                       {submissions.map(sub => (
-                          <tr key={sub.id} className="border-b border-slate-200">
-                              <td className="py-1 text-[8pt] font-bold text-slate-900">{sub.respondent.name}</td>
-                              <td className="py-1 text-[8pt] text-slate-600">{sub.respondent.sector}</td>
-                              <td className="py-1 text-[8pt] text-slate-500 font-mono">{new Date(sub.timestamp).toLocaleDateString('pt-BR')}</td>
-                              <td className="py-1 text-[8pt] font-black text-right" style={{color: sub.result.percentage < 40 ? '#dc2626' : sub.result.percentage < 80 ? '#d97706' : '#059669'}}>
-                                  {sub.result.percentage.toFixed(0)}%
+                          <tr key={sub.id} className="border-b border-slate-100 last:border-0">
+                              <td className="px-3 py-1.5 text-[8pt] font-bold text-slate-900">{sub.respondent.name}</td>
+                              <td className="px-3 py-1.5 text-[8pt] text-slate-600">{sub.respondent.sector}</td>
+                              <td className="px-3 py-1.5 text-[8pt] text-slate-500 font-mono">{new Date(sub.timestamp).toLocaleDateString('pt-BR')}</td>
+                              <td className="px-3 py-1.5 text-[8pt] font-bold text-right">
+                                  <span style={{color: sub.result.percentage < 40 ? '#dc2626' : sub.result.percentage < 80 ? '#d97706' : '#059669'}}>
+                                    {sub.result.percentage.toFixed(0)}%
+                                  </span>
                               </td>
-                              <td className="no-print text-right">
-                                  <button onClick={() => handleDelete(sub.id, sub.respondent.name)} className="text-red-500 text-xs">✕</button>
+                              <td className="no-print text-right px-2">
+                                  <button onClick={() => handleDelete(sub.id, sub.respondent.name)} className="text-red-500 text-xs font-bold">✕</button>
                               </td>
                           </tr>
                       ))}

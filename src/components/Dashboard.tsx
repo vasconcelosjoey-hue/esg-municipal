@@ -19,9 +19,9 @@ const Dashboard: React.FC<Props> = ({ result, respondentData }) => {
   }));
 
   const getScoreColor = (score: number) => {
-    if (score < 40) return '#dc2626'; // Red-600
-    if (score < 80) return '#d97706'; // Amber-600
-    return '#059669'; // Emerald-600
+    if (score < 40) return '#dc2626'; // Red
+    if (score < 80) return '#d97706'; // Amber
+    return '#059669'; // Emerald
   };
 
   const getScoreLabel = (score: number) => {
@@ -65,130 +65,106 @@ const Dashboard: React.FC<Props> = ({ result, respondentData }) => {
         </div>
         <button 
             onClick={() => window.print()} 
-            className="w-full md:w-auto flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg font-bold transition-colors shadow-lg hover:shadow-xl"
+            className="w-full md:w-auto flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-lg font-bold transition-colors shadow-lg hover:shadow-xl"
         >
-            Imprimir Briefing
+            Imprimir Relatório
         </button>
       </div>
 
-      {/* --- PRINT LAYOUT START --- */}
+      {/* --- PRINT LAYOUT --- */}
       <div className="print:block">
         
-        {/* 1. EXECUTIVE HEADER */}
-        <div className="hidden print:flex justify-between items-end border-b-4 border-slate-900 pb-4 mb-6">
+        {/* HEADER CORPORATIVO */}
+        <div className="hidden print:flex justify-between items-start border-b-2 border-slate-200 pb-4 mb-6">
             <div>
-                <h1 className="print-title-main">Diagnóstico ESG Municipal</h1>
-                <p className="print-subtitle mt-2 text-slate-500">Relatório Executivo de Inteligência & Estratégia</p>
+                <h1 className="corp-header-main">Diagnóstico ESG Municipal</h1>
+                <p className="corp-header-sub">Relatório de Inteligência Estratégica</p>
             </div>
             <div className="text-right">
-                <div className="print-caption font-bold uppercase tracking-widest mb-1">Mogi das Cruzes</div>
-                <div className="print-caption">{new Date().toLocaleDateString('pt-BR')}</div>
+                <div className="text-[9pt] font-bold uppercase text-slate-900">Mogi das Cruzes</div>
+                <div className="text-[8pt] text-slate-500">{new Date().toLocaleDateString('pt-BR')}</div>
             </div>
         </div>
 
-        {/* 2. EXECUTIVE SUMMARY GRID (2 Columns) */}
-        <div className="print-grid-exec mb-8">
+        {/* SECTION 1: OVERVIEW & RADAR (Grid 1:2 ratio preferred for Gartner style info panels) */}
+        <div className="corp-grid-header">
             
-            {/* LEFT COLUMN: KPI & INFO */}
-            <div className="flex flex-col gap-4">
-                {/* Respondent Card */}
-                <div className="print-border p-4 bg-slate-50">
-                     <h3 className="print-subtitle uppercase tracking-wider text-slate-400 mb-2 border-b border-slate-200 pb-1">Responsável Técnico</h3>
-                     <div className="flex justify-between items-baseline">
-                        <div>
-                            <div className="print-subtitle font-bold text-slate-900">{respondentData?.name || '-'}</div>
-                            <div className="print-text text-slate-600">{respondentData?.sector || '-'}</div>
-                        </div>
-                        <div className="text-right">
-                             <span className="print-caption block">ID Protocolo</span>
-                             <span className="font-mono text-xs text-slate-400">#{Math.floor(Math.random() * 10000)}</span>
-                        </div>
-                     </div>
+            {/* Left: Key Metrics Card */}
+            <div className="corp-card flex flex-col justify-between h-full bg-slate-50">
+                <div>
+                    <h3 className="text-[9pt] font-bold uppercase text-slate-500 mb-2">Índice Geral de Maturidade</h3>
+                    <div className="flex items-center gap-2 mb-2">
+                         <div className="text-5xl font-black tracking-tighter" style={{ color: getScoreColor(result.percentage) }}>
+                            {result.percentage.toFixed(0)}%
+                         </div>
+                    </div>
+                    <div className="corp-badge bg-white border border-slate-200 text-slate-900">
+                        {getScoreLabel(result.percentage)}
+                    </div>
                 </div>
 
-                {/* Main KPI Card */}
-                <div className="print-border p-4 flex items-center justify-between">
-                    <div>
-                        <h3 className="print-subtitle uppercase tracking-wider text-slate-400 mb-1">Índice de Maturidade</h3>
-                        <div className="text-4xl font-serif font-black" style={{ color: getScoreColor(result.percentage) }}>
-                            {result.percentage.toFixed(0)}%
-                        </div>
-                        <div className="print-caption font-bold mt-1 uppercase text-slate-500">
-                             {getScoreLabel(result.percentage)}
-                        </div>
-                    </div>
-                    {/* Gauge Chart (Small) */}
-                    <div className="w-24 h-24 relative">
-                         <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={gaugeData} cx="50%" cy="50%"
-                                    startAngle={180} endAngle={0}
-                                    innerRadius="60%" outerRadius="90%"
-                                    paddingAngle={0} dataKey="value" stroke="none"
-                                >
-                                    <Cell fill={getScoreColor(result.percentage)} />
-                                    <Cell fill="#e2e8f0" />
-                                </Pie>
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
+                <div className="mt-4 pt-4 border-t border-slate-200">
+                    <h4 className="text-[8pt] font-bold text-slate-400 uppercase mb-1">Responsável</h4>
+                    <div className="text-[10pt] font-bold text-slate-900 leading-tight">{respondentData?.name || 'Não informado'}</div>
+                    <div className="text-[8pt] text-slate-600">{respondentData?.sector || '-'}</div>
                 </div>
             </div>
 
-            {/* RIGHT COLUMN: RADAR CHART */}
-            <div className="print-border p-4 h-full">
-                <h3 className="print-subtitle uppercase tracking-wider text-slate-400 mb-2 border-b border-slate-200 pb-1">Raio-X Temático</h3>
-                <div className="h-[200px] w-full mt-2">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <RadarChart cx="50%" cy="50%" outerRadius="70%" data={chartData}>
-                            <PolarGrid stroke="#e2e8f0" strokeWidth={0.5} />
-                            <PolarAngleAxis dataKey="subject" tick={{ fontSize: 9, fontWeight: 700, fill: '#475569' }} />
+            {/* Right: Radar Analysis */}
+            <div className="corp-card">
+                <h3 className="corp-section-title text-[10pt] mb-0 border-none pl-0">Raio-X Temático</h3>
+                <div className="chart-container relative">
+                     <ResponsiveContainer width="100%" height="100%">
+                        <RadarChart cx="50%" cy="50%" outerRadius="75%" data={chartData}>
+                            <PolarGrid stroke="#e2e8f0" strokeWidth={1} />
+                            <PolarAngleAxis dataKey="subject" tick={{ fontSize: 9, fontWeight: 700, fill: '#64748b' }} />
                             <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                            <Radar name="Pontuação" dataKey="A" stroke={getScoreColor(result.percentage)} strokeWidth={2} fill={getScoreColor(result.percentage)} fillOpacity={0.2} />
+                            <Radar name="Pontuação" dataKey="A" stroke={getScoreColor(result.percentage)} strokeWidth={2} fill={getScoreColor(result.percentage)} fillOpacity={0.25} />
                         </RadarChart>
                     </ResponsiveContainer>
                 </div>
             </div>
         </div>
 
-        {/* 3. STRATEGIC ACTION PLAN (Grid 3 Columns) */}
+        {/* SECTION 2: STRATEGIC ACTION PLAN */}
         <div>
-            <h2 className="print-title-section">Plano de Ação Estratégico</h2>
+            <h2 className="corp-section-title">Plano de Ação Cronológico</h2>
             
-            <div className="print-grid-3">
+            {/* Grid layout for actions: Uniform horizontal blocks */}
+            <div className="corp-grid-3">
                 {(['1 Mês', '3 Meses', '6 Meses', '1 Ano', '5 Anos'] as TimeFrame[]).map((timeframe) => {
                     const timeActions = groupedActions[timeframe];
                     if (timeActions.length === 0) return null;
 
-                    const borderColor = timeframe.includes('Mês') ? 'border-l-4 border-l-red-500' : 
-                                        timeframe.includes('Ano') && !timeframe.includes('5') ? 'border-l-4 border-l-amber-500' : 
-                                        'border-l-4 border-l-emerald-500';
+                    // Color accents for cards
+                    const accentColor = timeframe.includes('Mês') ? 'border-t-red-500' : 
+                                        timeframe.includes('Ano') && !timeframe.includes('5') ? 'border-t-amber-500' : 
+                                        'border-t-emerald-500';
 
                     return (
-                        <div key={timeframe} className={`print-border p-3 print-break-inside-avoid ${borderColor} mb-2`}>
-                            {/* Header */}
-                            <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-2">
-                                <h3 className="print-subtitle uppercase font-bold text-slate-800">{timeframe}</h3>
-                                <span className="print-caption bg-slate-100 px-1 rounded">
-                                    {timeframe.includes('Mês') ? 'Tático' : 'Estratégico'}
+                        <div key={timeframe} className={`corp-card border-t-4 ${accentColor} flex flex-col h-full`}>
+                            {/* Card Header */}
+                            <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-100">
+                                <span className="font-bold text-[10pt] text-slate-800 uppercase">{timeframe}</span>
+                                <span className="text-[7pt] text-slate-400 uppercase font-medium">
+                                    {timeframe.includes('Mês') ? 'Curto Prazo' : 'Longo Prazo'}
                                 </span>
                             </div>
-                            
+
                             {/* Actions List */}
-                            <div className="space-y-3">
+                            <div className="flex-1 space-y-3">
                                 {timeActions.map((action, idx) => (
-                                    <div key={idx} className="relative pl-0">
-                                        <div className="flex justify-between items-start">
-                                            <span className="text-[7pt] font-black uppercase text-slate-400 tracking-wider mb-0.5 block">
+                                    <div key={idx} className="relative">
+                                        <div className="flex justify-between items-start mb-0.5">
+                                            <span className="corp-badge bg-slate-100 text-slate-500 border border-slate-200">
                                                 {action.category}
                                             </span>
-                                            {action.priority === 'Alta' && <span className="text-[6pt] bg-black text-white px-1 font-bold">ALTA</span>}
+                                            {action.priority === 'Alta' && <span className="corp-badge bg-slate-900 text-white">Alta</span>}
                                         </div>
-                                        <h4 className="print-subtitle text-[9pt] leading-tight mb-1 text-slate-900 font-bold">
+                                        <h4 className="text-[9pt] font-bold text-slate-900 leading-tight mb-0.5 mt-1">
                                             {action.title}
                                         </h4>
-                                        <p className="print-text text-[8pt] text-slate-600 leading-snug">
+                                        <p className="text-[8pt] text-slate-600 leading-snug text-justify">
                                             {action.description}
                                         </p>
                                     </div>
@@ -200,27 +176,30 @@ const Dashboard: React.FC<Props> = ({ result, respondentData }) => {
             </div>
         </div>
 
-        {/* Footer info */}
-        <div className="hidden print:block border-t border-slate-200 mt-6 pt-2 text-center">
-             <span className="print-caption">Documento gerado automaticamente pelo Sistema ESG Municipal. Confidencial.</span>
+        {/* Footer */}
+        <div className="hidden print:block border-t border-slate-200 mt-6 pt-2">
+             <div className="flex justify-between text-[7pt] text-slate-400 uppercase">
+                 <span>ESG Municipal Intelligence System</span>
+                 <span>Confidencial • Uso Interno</span>
+                 <span>Página 1</span>
+             </div>
         </div>
 
       </div>
-      {/* --- PRINT LAYOUT END --- */}
+      {/* --- END PRINT LAYOUT --- */}
 
-
-      {/* --- WEB LAYOUT (Simplified Fallback for non-print) --- */}
+      {/* WEB FALLBACK CONTENT */}
       <div className="mx-4 md:mx-0 no-print block">
-        {/* Web content logic remains similar but hidden during print via CSS */}
-         <div className="bg-yellow-50 p-4 rounded border border-yellow-200 text-yellow-800 text-sm mb-4">
-            ⚠️ Modo de visualização Web. Para ver o layout executivo, clique em "Imprimir Briefing".
+         <div className="bg-slate-50 p-4 rounded border border-slate-200 mb-6">
+            <h3 className="font-bold text-lg mb-2">Visão Geral Web</h3>
+            <p className="text-sm text-slate-600">Para visualizar o relatório no formato executivo, utilize o botão de impressão acima.</p>
          </div>
-         {/* Reuse the print layout structure but styled for web roughly */}
+         {/* Simple web view reuse */}
          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <div className="bg-white p-6 rounded shadow-sm border">
-                <h3 className="font-bold text-lg mb-2">Índice Geral</h3>
+                <div className="text-sm text-slate-500 uppercase font-bold">Score Geral</div>
                 <div className="text-5xl font-black text-slate-800 mb-2">{result.percentage.toFixed(0)}%</div>
-                <div className="text-sm text-slate-500 uppercase font-bold">{getScoreLabel(result.percentage)}</div>
+                <div className="text-sm font-bold text-emerald-600">{getScoreLabel(result.percentage)}</div>
             </div>
             <div className="bg-white p-6 rounded shadow-sm border h-[300px]">
                  <ResponsiveContainer width="100%" height="100%">
@@ -232,26 +211,6 @@ const Dashboard: React.FC<Props> = ({ result, respondentData }) => {
                     </RadarChart>
                 </ResponsiveContainer>
             </div>
-         </div>
-         {/* Web Timeline */}
-         <div className="space-y-6">
-            {Object.entries(groupedActions).map(([tf, acts]) => {
-                const actionItems = acts as ActionPlanItem[];
-                return (
-                actionItems.length > 0 && (
-                    <div key={tf} className="bg-white p-6 rounded border shadow-sm">
-                        <h3 className="font-bold text-lg mb-4 border-b pb-2">{tf}</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {actionItems.map((a, i) => (
-                                <div key={i} className="bg-slate-50 p-3 rounded">
-                                    <div className="font-bold text-sm text-slate-900">{a.title}</div>
-                                    <div className="text-xs text-slate-600 mt-1">{a.description}</div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )
-            )})}
          </div>
       </div>
 
