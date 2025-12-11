@@ -5,7 +5,7 @@ import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, writeBatch
 
 const COLLECTION_NAME = "submissions";
 
-// --- CORE CALCULATION LOGIC (Mantida para funcionamento do App) ---
+// --- CORE CALCULATION LOGIC ---
 
 export const calculateScore = (answers: AnswersState): AssessmentResult => {
   let totalScore = 0;
@@ -46,7 +46,7 @@ export const calculateScore = (answers: AnswersState): AssessmentResult => {
   return { totalScore, maxScore, percentage, level, categoryScores };
 };
 
-// --- DATA PERSISTENCE (Substituída conforme solicitado - Sem LocalStorage) ---
+// --- DATA PERSISTENCE ---
 
 export interface SaveResult {
     savedToCloud: boolean;
@@ -121,88 +121,150 @@ export const clearAllSubmissions = async (): Promise<boolean> => {
   }
 };
 
-// --- ACTION PLAN GENERATOR (Atualizado para ser mais realista e estratégico) ---
+// --- INTELLIGENT ACTION PLAN GENERATOR (Category Specific) ---
 
-const ACTION_TEMPLATES: Record<'CRITICAL' | 'REGULAR' | 'EXCELLENT', Record<TimeFrame, { title: string, desc: string, priority: 'Alta' | 'Média' | 'Baixa' }>> = {
-  CRITICAL: {
-    '1 Mês': { 
-        title: 'Força-Tarefa de Conformidade', 
-        desc: 'Criar grupo de trabalho imediato para mapear riscos legais e evitar sanções do MP/Tribunais em {cat}. Foco em "estancar a sangria".', 
-        priority: 'Alta' 
+type ActionDefinition = { title: string; desc: string; priority: 'Alta' | 'Média' | 'Baixa' };
+type MaturityActions = Record<'CRITICAL' | 'REGULAR' | 'EXCELLENT', Record<TimeFrame, ActionDefinition>>;
+
+// Define unique actions for each category to avoid repetition
+const CATEGORY_ACTIONS: Record<string, MaturityActions> = {
+  'legislacao': {
+    CRITICAL: {
+      '1 Mês': { title: 'Diagnóstico Jurídico', desc: 'Levantar todas as leis ambientais municipais faltantes ou obsoletas.', priority: 'Alta' },
+      '3 Meses': { title: 'Grupo de Trabalho', desc: 'Criar comissão para redigir o Código Ambiental Municipal.', priority: 'Alta' },
+      '6 Meses': { title: 'Marcos Regulatórios', desc: 'Publicar decretos essenciais para licenciamento e fiscalização.', priority: 'Alta' },
+      '1 Ano': { title: 'Aprovação Legislativa', desc: 'Aprovar o novo Código Ambiental na Câmara Municipal.', priority: 'Média' },
+      '5 Anos': { title: 'Consolidação Legal', desc: 'Revisão quinquenal automática de toda legislação ambiental.', priority: 'Baixa' }
     },
-    '3 Meses': { 
-        title: 'Diagnóstico e Regularização Documental', 
-        desc: 'Levantamento de passivos e elaboração de minutas de decretos para regulamentação básica de {cat}.', 
-        priority: 'Alta' 
+    REGULAR: {
+      '1 Mês': { title: 'Revisão de Decretos', desc: 'Identificar gargalos na aplicação das leis atuais.', priority: 'Média' },
+      '3 Meses': { title: 'Capacitação Fiscal', desc: 'Treinar fiscais sobre as novas normativas vigentes.', priority: 'Média' },
+      '6 Meses': { title: 'Digitalização de Processos', desc: 'Implantar sistema digital para trâmite de processos legais.', priority: 'Média' },
+      '1 Ano': { title: 'Integração Regional', desc: 'Harmonizar leis com municípios vizinhos (consórcios).', priority: 'Média' },
+      '5 Anos': { title: 'Referência Jurídica', desc: 'Tornar o município modelo estadual em legislação verde.', priority: 'Baixa' }
     },
-    '6 Meses': { 
-        title: 'Captação de Recursos Emergencial', 
-        desc: 'Protocolar projetos básicos nos ministérios/bancos de fomento para viabilizar obras essenciais em {cat}.', 
-        priority: 'Alta' 
-    },
-    '1 Ano': { 
-        title: 'Execução de Obras Estruturantes', 
-        desc: 'Início das intervenções físicas ou contratação de serviços terceirizados para sair do índice crítico em {cat}.', 
-        priority: 'Média' 
-    },
-    '5 Anos': { 
-        title: 'Estabilidade e Nivelamento Estadual', 
-        desc: 'Alcançar os índices médios do estado em {cat}, eliminando completamente os passivos históricos.', 
-        priority: 'Média' 
+    EXCELLENT: {
+      '1 Mês': { title: 'Compliance Ativo', desc: 'Auditoria preventiva para garantir segurança jurídica total.', priority: 'Alta' },
+      '3 Meses': { title: 'Simplificação', desc: 'Desburocratizar fluxos sem perder o rigor técnico.', priority: 'Baixa' },
+      '6 Meses': { title: 'Incentivos Fiscais', desc: 'Criar leis de IPTU Verde e pagamentos por serviços ambientais.', priority: 'Média' },
+      '1 Ano': { title: 'Certificação ISO', desc: 'Preparar base legal para certificações internacionais de gestão.', priority: 'Baixa' },
+      '5 Anos': { title: 'Vanguarda Legislativa', desc: 'Propor leis inovadoras sobre clima e créditos de carbono.', priority: 'Baixa' }
     }
   },
-  REGULAR: {
-    '1 Mês': { 
-        title: 'Auditoria de Processos', 
-        desc: 'Revisar fluxos de trabalho em {cat} para identificar gargalos burocráticos que impedem a nota excelente.', 
-        priority: 'Média' 
+  'agua': {
+    CRITICAL: {
+      '1 Mês': { title: 'Plano de Emergência', desc: 'Mapear áreas sem abastecimento e acionar caminhões-pipa/ações paliativas.', priority: 'Alta' },
+      '3 Meses': { title: 'Revisão do PMSB', desc: 'Contratar revisão urgente do Plano Municipal de Saneamento.', priority: 'Alta' },
+      '6 Meses': { title: 'Caça a Vazamentos', desc: 'Programa intensivo de combate a perdas na rede de distribuição.', priority: 'Alta' },
+      '1 Ano': { title: 'Obras de Captação', desc: 'Iniciar ampliação da estação de tratamento de água (ETA).', priority: 'Alta' },
+      '5 Anos': { title: 'Universalização', desc: 'Atingir 99% de cobertura de água potável no município.', priority: 'Média' }
     },
-    '3 Meses': { 
-        title: 'Capacitação Técnica e Tecnologia', 
-        desc: 'Treinamento intensivo das equipes e aquisição de softwares de gestão para otimizar {cat}.', 
-        priority: 'Média' 
+    REGULAR: {
+      '1 Mês': { title: 'Monitoramento de Perdas', desc: 'Instalar macromedidores em setores críticos da cidade.', priority: 'Alta' },
+      '3 Meses': { title: 'Qualidade da Água', desc: 'Ampliar pontos de coleta para análise de potabilidade.', priority: 'Média' },
+      '6 Meses': { title: 'Esgotamento Sanitário', desc: 'Expandir rede coletora para bairros em regularização.', priority: 'Alta' },
+      '1 Ano': { title: 'Eficiência Energética', desc: 'Trocar bombas antigas da ETA por modelos de alto rendimento.', priority: 'Média' },
+      '5 Anos': { title: 'Ciclo Fechado', desc: 'Implementar reúso de água tratada para fins industriais/urbanos.', priority: 'Baixa' }
     },
-    '6 Meses': { 
-        title: 'Expansão da Cobertura do Serviço', 
-        desc: 'Ampliar o atendimento de {cat} para áreas rurais ou bairros periféricos ainda não atendidos.', 
-        priority: 'Alta' 
-    },
-    '1 Ano': { 
-        title: 'Digitalização e Monitoramento', 
-        desc: 'Implantar centro de controle operacional com indicadores em tempo real para {cat}.', 
-        priority: 'Média' 
-    },
-    '5 Anos': { 
-        title: 'Universalização com Qualidade', 
-        desc: 'Garantir que 100% da população tenha acesso a {cat} com padrões de qualidade certificados.', 
-        priority: 'Baixa' 
+    EXCELLENT: {
+      '1 Mês': { title: 'Manutenção Preditiva', desc: 'Usar sensores IoT para detectar falhas na rede antes que ocorram.', priority: 'Média' },
+      '3 Meses': { title: 'Tarifa Social', desc: 'Garantir que a excelência técnica chegue às populações vulneráveis.', priority: 'Alta' },
+      '6 Meses': { title: 'Drenagem Sustentável', desc: 'Implantar jardins de chuva e biovaletas integradas.', priority: 'Média' },
+      '1 Ano': { title: 'Segurança Hídrica', desc: 'Proteger 100% dos mananciais com cercamento e reflorestamento.', priority: 'Baixa' },
+      '5 Anos': { title: 'Cidade Esponja', desc: 'Consolidar conceito de cidade sensível à água (Water Sensitive City).', priority: 'Baixa' }
     }
   },
-  EXCELLENT: {
-    '1 Mês': { 
-        title: 'Blindagem e Governança de Dados', 
-        desc: 'Validar integridade dos indicadores de {cat} para garantir que o resultado seja auditável e sustentável. Não permitir retrocesso.', 
-        priority: 'Alta' 
+  'residuos': {
+    CRITICAL: {
+      '1 Mês': { title: 'Erradicação de Lixões', desc: 'Encerrar imediatamente vazadouros a céu aberto (crime ambiental).', priority: 'Alta' },
+      '3 Meses': { title: 'Coleta Regular', desc: 'Regularizar contratos de coleta convencional para evitar acúmulo.', priority: 'Alta' },
+      '6 Meses': { title: 'Plano de Resíduos', desc: 'Elaborar o PMGIRS integrado com municípios vizinhos.', priority: 'Alta' },
+      '1 Ano': { title: 'Transbordo/Aterro', desc: 'Construir estação de transbordo ou licenciar aterro sanitário.', priority: 'Alta' },
+      '5 Anos': { title: 'Fim dos Passivos', desc: 'Remediar todas as áreas contaminadas por antigos lixões.', priority: 'Média' }
     },
-    '3 Meses': { 
-        title: 'Gestão do Conhecimento e Mentoria', 
-        desc: 'Documentar os POPs (Procedimentos Operacionais Padrão) de {cat} para que a excelência não dependa de pessoas específicas.', 
-        priority: 'Média' 
+    REGULAR: {
+      '1 Mês': { title: 'Apoio a Catadores', desc: 'Fornecer EPIs e galpão estruturado para cooperativas.', priority: 'Alta' },
+      '3 Meses': { title: 'Ecopontos', desc: 'Instalar pontos de entrega voluntária para entulho e volumosos.', priority: 'Média' },
+      '6 Meses': { title: 'Logística Reversa', desc: 'Firmar acordos setoriais (lâmpadas, pneus, eletrônicos).', priority: 'Média' },
+      '1 Ano': { title: 'Coleta Seletiva', desc: 'Expandir a coleta seletiva porta a porta para 50% da cidade.', priority: 'Média' },
+      '5 Anos': { title: 'Valorização Energética', desc: 'Estudar viabilidade de biogás ou recuperação energética de rejeitos.', priority: 'Baixa' }
     },
-    '6 Meses': { 
-        title: 'Inovação e Benchmarking Global', 
-        desc: 'Buscar tecnologias disruptivas (IoT/AI) aplicadas a {cat} para superar os padrões nacionais.', 
-        priority: 'Média' 
+    EXCELLENT: {
+      '1 Mês': { title: 'Métrica de Reciclagem', desc: 'Auditar gravimetria para comprovar desvio do aterro.', priority: 'Média' },
+      '3 Meses': { title: 'Compostagem Urbana', desc: 'Incentivar composteiras domésticas e pátios de compostagem.', priority: 'Média' },
+      '6 Meses': { title: 'Economia Circular', desc: 'Fomentar indústrias que usem resíduos locais como matéria-prima.', priority: 'Média' },
+      '1 Ano': { title: 'Lixo Zero', desc: 'Certificar prédios públicos e eventos municipais como Lixo Zero.', priority: 'Baixa' },
+      '5 Anos': { title: 'Aterro Mínimo', desc: 'Enviar apenas rejeitos (<10%) para aterro sanitário.', priority: 'Baixa' }
+    }
+  },
+  'energia': {
+    CRITICAL: {
+      '1 Mês': { title: 'Inventário de Contas', desc: 'Mapear gastos com energia em todos os prédios públicos.', priority: 'Média' },
+      '3 Meses': { title: 'Combate ao Desperdício', desc: 'Campanha interna de desligamento de luzes e ar-condicionado.', priority: 'Média' },
+      '6 Meses': { title: 'Troca de Lâmpadas', desc: 'Iniciar substituição de iluminação pública por LED (mais econômica).', priority: 'Alta' },
+      '1 Ano': { title: 'Eficiência Predial', desc: 'Revisar contratos de demanda contratada junto à concessionária.', priority: 'Média' },
+      '5 Anos': { title: 'Infraestrutura Básica', desc: 'Garantir rede elétrica segura em todas as escolas e postos.', priority: 'Alta' }
     },
-    '1 Ano': { 
-        title: 'Certificações Internacionais (ISO)', 
-        desc: 'Submeter a gestão de {cat} a auditorias externas para obtenção de selos de qualidade globais.', 
-        priority: 'Média' 
+    REGULAR: {
+      '1 Mês': { title: 'Gestão Telemetrizada', desc: 'Instalar medidores inteligentes em grandes consumidores municipais.', priority: 'Média' },
+      '3 Meses': { title: 'Inventário de GEE', desc: 'Realizar o primeiro inventário de emissões de gases estufa.', priority: 'Média' },
+      '6 Meses': { title: 'Energia Solar (Piloto)', desc: 'Instalar painéis fotovoltaicos no prédio da prefeitura.', priority: 'Média' },
+      '1 Ano': { title: 'PPP de Iluminação', desc: 'Estruturar Parceria Público-Privada para 100% LED na cidade.', priority: 'Alta' },
+      '5 Anos': { title: 'Frota Limpa', desc: 'Iniciar transição da frota de ônibus/carros para elétricos/híbridos.', priority: 'Baixa' }
     },
-    '5 Anos': { 
-        title: 'Legado e Cidade Inteligente', 
-        desc: 'Consolidar {cat} como case de referência mundial, integrando-o totalmente ao ecossistema de Smart Cities.', 
-        priority: 'Baixa' 
+    EXCELLENT: {
+      '1 Mês': { title: 'Monitoramento Real-Time', desc: 'Dashboard público de geração e consumo de energia limpa.', priority: 'Baixa' },
+      '3 Meses': { title: 'Mercado Livre', desc: 'Migrar grandes unidades consumidoras para o Mercado Livre de Energia.', priority: 'Média' },
+      '6 Meses': { title: 'Edifícios NZEB', desc: 'Projetar novos prédios públicos com consumo "Zero Energy".', priority: 'Média' },
+      '1 Ano': { title: 'Fazenda Solar', desc: 'Construir usina solar municipal para abater 100% da conta de luz.', priority: 'Baixa' },
+      '5 Anos': { title: 'Smart Grid', desc: 'Integrar a rede municipal a sistemas inteligentes de distribuição.', priority: 'Baixa' }
+    }
+  },
+  'governanca': {
+    CRITICAL: {
+      '1 Mês': { title: 'Nomear Responsável', desc: 'Designar servidor ou comitê oficial para responder por ESG.', priority: 'Alta' },
+      '3 Meses': { title: 'Dados Básicos', desc: 'Organizar planilhas dispersas em um banco de dados centralizado.', priority: 'Alta' },
+      '6 Meses': { title: 'Portal Transparência', desc: 'Publicar contratos e licitações ambientais no site oficial.', priority: 'Alta' },
+      '1 Ano': { title: 'Orçamento (LOA)', desc: 'Criar rubrica específica para Meio Ambiente no orçamento anual.', priority: 'Alta' },
+      '5 Anos': { title: 'Cultura Institucional', desc: 'Inserir critérios de sustentabilidade em todas as decisões.', priority: 'Média' }
+    },
+    REGULAR: {
+      '1 Mês': { title: 'Capacitação ESG', desc: 'Curso de atualização para secretários e diretores sobre ODS.', priority: 'Média' },
+      '3 Meses': { title: 'Conselhos Ativos', desc: 'Fortalecer o COMDEMA com reuniões mensais e deliberativas.', priority: 'Alta' },
+      '6 Meses': { title: 'Compras Sustentáveis', desc: 'Incluir critérios verdes nos editais de licitação (Lei 14.133).', priority: 'Média' },
+      '1 Ano': { title: 'Relatório Anual', desc: 'Publicar Relatório de Sustentabilidade no padrão GRI ou ODS.', priority: 'Média' },
+      '5 Anos': { title: 'Governo Digital', desc: 'Eliminar 100% do papel na tramitação interna (Paperless).', priority: 'Baixa' }
+    },
+    EXCELLENT: {
+      '1 Mês': { title: 'Auditoria Externa', desc: 'Contratar verificação independente dos indicadores publicados.', priority: 'Alta' },
+      '3 Meses': { title: 'Captação Internacional', desc: 'Apresentar projetos a fundos internacionais (BID, Banco Mundial).', priority: 'Alta' },
+      '6 Meses': { title: 'Open Data', desc: 'Disponibilizar APIs abertas com dados ambientais da cidade.', priority: 'Baixa' },
+      '1 Ano': { title: 'Compliance Officer', desc: 'Criar cargo de controladoria focado em riscos climáticos/ESG.', priority: 'Média' },
+      '5 Anos': { title: 'Referência Global', desc: 'Ser case de estudo em fóruns mundiais de gestão pública.', priority: 'Baixa' }
+    }
+  },
+  // Fallback for categories not explicitly detailed above (using a improved generic template)
+  'default': {
+    CRITICAL: {
+      '1 Mês': { title: 'Diagnóstico de Crise', desc: 'Identificar as causas raiz do baixo desempenho em {cat}.', priority: 'Alta' },
+      '3 Meses': { title: 'Plano de Recuperação', desc: 'Estabelecer metas curtas para sair da zona crítica em {cat}.', priority: 'Alta' },
+      '6 Meses': { title: 'Estruturação Básica', desc: 'Contratar equipe ou equipamentos mínimos para {cat}.', priority: 'Alta' },
+      '1 Ano': { title: 'Regularização', desc: 'Cumprir as exigências legais mínimas pendentes em {cat}.', priority: 'Média' },
+      '5 Anos': { title: 'Nivelamento', desc: 'Alcançar a média dos municípios vizinhos em {cat}.', priority: 'Média' }
+    },
+    REGULAR: {
+      '1 Mês': { title: 'Otimização de Fluxos', desc: 'Melhorar a eficiência dos processos atuais de {cat}.', priority: 'Média' },
+      '3 Meses': { title: 'Treinamento', desc: 'Capacitar a equipe nas melhores práticas de {cat}.', priority: 'Média' },
+      '6 Meses': { title: 'Investimento Tecnológico', desc: 'Adquirir softwares ou ferramentas para modernizar {cat}.', priority: 'Alta' },
+      '1 Ano': { title: 'Ampliação de Escopo', desc: 'Levar as ações de {cat} para mais bairros da cidade.', priority: 'Média' },
+      '5 Anos': { title: 'Universalização', desc: 'Garantir atendimento de qualidade em {cat} para todos.', priority: 'Baixa' }
+    },
+    EXCELLENT: {
+      '1 Mês': { title: 'Manutenção da Qualidade', desc: 'Monitorar indicadores para não permitir retrocessos em {cat}.', priority: 'Alta' },
+      '3 Meses': { title: 'Mentoria', desc: 'Usar a experiência em {cat} para ajudar outras secretarias.', priority: 'Baixa' },
+      '6 Meses': { title: 'Inovação', desc: 'Testar novas tecnologias piloto aplicadas a {cat}.', priority: 'Média' },
+      '1 Ano': { title: 'Certificação', desc: 'Buscar prêmios ou selos de qualidade para {cat}.', priority: 'Média' },
+      '5 Anos': { title: 'Legado', desc: 'Transformar {cat} em política de estado, independente de gestão.', priority: 'Baixa' }
     }
   }
 };
@@ -210,30 +272,40 @@ const ACTION_TEMPLATES: Record<'CRITICAL' | 'REGULAR' | 'EXCELLENT', Record<Time
 const generateActionsForCategory = (cat: CategoryData, pct: number): ActionPlanItem[] => {
   const actions: ActionPlanItem[] = [];
   
-  // Select Template Group based on Percentage
-  let templateGroup = ACTION_TEMPLATES.CRITICAL;
-  if (pct >= 80) templateGroup = ACTION_TEMPLATES.EXCELLENT;
-  else if (pct >= 40) templateGroup = ACTION_TEMPLATES.REGULAR;
+  // Determine Maturity Level
+  let maturity: 'CRITICAL' | 'REGULAR' | 'EXCELLENT' = 'CRITICAL';
+  if (pct >= 80) maturity = 'EXCELLENT';
+  else if (pct >= 40) maturity = 'REGULAR';
+
+  // Find specific templates for this category ID, or fallback to 'default'
+  const catId = cat.id;
+  const specificTemplates = CATEGORY_ACTIONS[catId] || CATEGORY_ACTIONS['default'];
+  const maturityTemplates = specificTemplates[maturity] || CATEGORY_ACTIONS['default'][maturity]; // Fallback safety
 
   const cleanCatTitle = cat.title.includes('. ') ? cat.title.split('. ')[1] : cat.title;
 
   (['1 Mês', '3 Meses', '6 Meses', '1 Ano', '5 Anos'] as TimeFrame[]).forEach(timeframe => {
-    const template = templateGroup[timeframe];
+    const template = maturityTemplates[timeframe];
     
+    // Determine responsible based on timeframe logic (can be customized per category later if needed)
     let responsible = 'Equipe Técnica';
     if (timeframe === '1 Mês') responsible = 'Gestão / Gabinete';
-    else if (timeframe === '3 Meses') responsible = 'Coordenação Jurídica/Técnica';
-    else if (timeframe === '6 Meses') responsible = 'Planejamento e Projetos';
+    else if (timeframe === '3 Meses') responsible = 'Coordenação Setorial';
+    else if (timeframe === '6 Meses') responsible = 'Planejamento';
     else if (timeframe === '1 Ano') responsible = 'Secretaria Executiva';
-    else if (timeframe === '5 Anos') responsible = 'Conselho Municipal / Prefeito';
+    else if (timeframe === '5 Anos') responsible = 'Prefeito / Conselho';
+
+    // If using default template, replace {cat} placeholder. If specific, text is already perfect.
+    const title = template.title.replace('{cat}', cleanCatTitle);
+    const desc = template.desc.replace('{cat}', cleanCatTitle);
 
     actions.push({
-      title: template.title.replace('{cat}', cleanCatTitle),
-      description: template.desc.replace('{cat}', cleanCatTitle),
+      title: title,
+      description: desc,
       deadline: timeframe,
       timeline: timeframe,
       responsible: responsible,
-      impact: pct < 40 ? 'Mitigação de Risco' : (pct < 80 ? 'Eficiência Operacional' : 'Inovação e Legado'),
+      impact: maturity === 'CRITICAL' ? 'Correção de Rumo' : (maturity === 'REGULAR' ? 'Melhoria de Performance' : 'Excelência e Inovação'),
       priority: template.priority,
       category: cleanCatTitle
     });
@@ -245,8 +317,7 @@ const generateActionsForCategory = (cat: CategoryData, pct: number): ActionPlanI
 export const generateFullActionPlan = (result: AssessmentResult): ActionPlanItem[] => {
   let allActions: ActionPlanItem[] = [];
 
-  // Sort categories by lowest score first to prioritize urgent needs in the list order
-  // However, for the consolidated plan, we might want to group by timeframe which is handled in the UI
+  // Sort categories by lowest score first to prioritize urgent needs
   const sortedCategories = [...CATEGORIES].sort((a, b) => {
     const scoreA = result.categoryScores[a.id]?.percentage || 0;
     const scoreB = result.categoryScores[b.id]?.percentage || 0;
