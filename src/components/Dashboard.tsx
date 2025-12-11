@@ -4,24 +4,10 @@ import { generateFullActionPlan } from '../utils';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, PieChart, Pie, Cell, Tooltip } from 'recharts';
 import { CATEGORIES } from '../constants';
 
-interface Props {
+interface ExtendedProps {
   result: AssessmentResult;
   respondentData: RespondentData | null;
-  // If evidences are passed to dashboard (needs checking App.tsx if passed)
-  // For now assuming result might have it or we fetch it? 
-  // In App.tsx Dashboard is used inside AdminDashboard (which passes data) AND inside App (success/view).
-  // Ideally Dashboard should accept evidences prop.
-}
-
-// Updating Props to include evidence if available (AdminDashboard passes result which contains evidences? No, Submission does.)
-// Let's assume Dashboard needs to receive evidences or look at result. But result doesn't have evidences.
-// We need to update the Component signature to accept 'evidences' prop if we want to show them.
-// But wait, the previous code in AdminDashboard passed: <Dashboard result={selectedSubmission.result} respondentData={selectedSubmission.respondent} />
-// I need to update AdminDashboard to pass evidences too. And App.tsx too.
-
-// However, to keep it simple and consistent with "Fix 4", I will modify Dashboard to accept `evidences`.
-interface ExtendedProps extends Props {
-    evidences?: EvidencesState;
+  evidences?: EvidencesState;
 }
 
 const Dashboard: React.FC<ExtendedProps> = ({ result, respondentData, evidences }) => {
@@ -92,17 +78,17 @@ const Dashboard: React.FC<ExtendedProps> = ({ result, respondentData, evidences 
                 <div className="w-16 h-16 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center text-white text-2xl font-bold mb-6 border border-white/20">
                     {respondentData?.name.charAt(0)}
                 </div>
-                <h1 className="animus-title" style={{fontSize: '32pt'}}>Diagnóstico<br/>Individual</h1>
-                <p className="text-white opacity-80 mt-4 text-xl font-light tracking-wide">{respondentData?.name}</p>
+                <h1 className="animus-title print:text-slate-900" style={{fontSize: '32pt'}}>Diagnóstico<br/>Individual</h1>
+                <p className="text-white opacity-80 mt-4 text-xl font-light tracking-wide print:text-slate-600">{respondentData?.name}</p>
             </div>
 
             <div className="animus-cover-content">
                 <div className="border-l-4 border-indigo-400 pl-6 mb-12">
-                    <div className="uppercase tracking-widest text-xs font-bold opacity-60 mb-1">Setor Avaliado</div>
-                    <div className="text-4xl font-bold">{respondentData?.sector}</div>
+                    <div className="uppercase tracking-widest text-xs font-bold opacity-60 mb-1 print:text-slate-500">Setor Avaliado</div>
+                    <div className="text-4xl font-bold print:text-slate-900">{respondentData?.sector}</div>
                 </div>
                 <div className="flex justify-between items-end border-t border-white/20 pt-6">
-                     <div className="text-sm font-medium opacity-70">
+                     <div className="text-sm font-medium opacity-70 print:text-slate-500">
                          Relatório Confidencial<br/>
                          Gerado em {new Date().toLocaleDateString('pt-BR')}
                      </div>
@@ -110,7 +96,7 @@ const Dashboard: React.FC<ExtendedProps> = ({ result, respondentData, evidences 
                          <div className="text-6xl font-black tracking-tighter" style={{color: getScoreColor(result.percentage)}}>
                              {result.percentage.toFixed(0)}%
                          </div>
-                         <div className="text-xs uppercase font-bold tracking-widest opacity-80">Score Preliminar</div>
+                         <div className="text-xs uppercase font-bold tracking-widest opacity-80 print:text-slate-500">Score Preliminar</div>
                      </div>
                 </div>
             </div>

@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CATEGORIES } from './constants';
 import { AnswersState, AssessmentResult, RespondentData, EvidencesState } from './types';
-import { calculateScore, saveSubmission, loadDraft, clearLocalProgress } from './utils';
+import { calculateScore, saveSubmission, loadDraft, clearLocalProgress, loginUser } from './utils';
 import Assessment from './components/Assessment';
 import Dashboard from './components/Dashboard'; 
 import AdminDashboard from './components/AdminDashboard';
+import { auth } from './firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 enum View {
   HOME = 'HOME',
@@ -28,7 +30,7 @@ const DisclaimerModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ i
                 <ul className="list-disc pl-5 space-y-2">
                     <li><strong>Dispositivo:</strong> Recomendamos o uso de computador ou notebook para anexar arquivos com facilidade.</li>
                     <li><strong>Evidências:</strong> O tamanho máximo permitido por arquivo é <strong>1MB</strong> (PDF, JPG, PNG, DOCX, XLSX).</li>
-                    <li><strong>Autosave:</strong> Seu progresso é salvo automaticamente neste dispositivo.</li>
+                    <li><strong>Autosave:</strong> Seu progresso é salvo automaticamente neste dispositivo e na nuvem.</li>
                     <li><strong>Segurança:</strong> Por segurança, sua sessão expira após <strong>10 minutos</strong> de inatividade.</li>
                 </ul>
             </div>
@@ -89,26 +91,47 @@ const InactivityTimer: React.FC<{ isActive: boolean; onTimeout: () => void }> = 
   );
 };
 
-// --- RESPONDENT MODAL ---
-const RespondentModal: React.FC<{ 
+// --- LOGIN MODAL (AUTHENTICATION) ---
+const LoginModal: React.FC<{ 
   isOpen: boolean; 
   onClose: () => void; 
-  onSubmit: (data: RespondentData) => void; 
-}> = ({ isOpen, onClose, onSubmit }) => {
+  onLoginSuccess: (data: RespondentData) => void; 
+}> = ({ isOpen, onClose, onLoginSuccess }) => {
   const [name, setName] = useState('');
   const [sector, setSector] = useState('');
+  const [pin, setPin] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e?: React.FormEvent) => {
+  const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!name.trim() || !sector.trim()) {
+    setError('');
+    
+    if (!name.trim() || !sector.trim() || !pin.trim()) {
       setError('Por favor, preencha todos os campos.');
       return;
     }
-    onSubmit({ name, sector });
-    setError('');
+    
+    if (pin.length !== 6 || isNaN(Number(pin))) {
+        setError('A senha deve conter 6 números.');
+        return;
+    }
+
+    setLoading(true);
+    try {
+        const user = await loginUser(name, pin);
+        onLoginSuccess({
+            name,
+            sector,
+            uid: user.uid
+        });
+    } catch (err: any) {
+        setError(err.message || 'Erro ao realizar login.');
+    } finally {
+        setLoading(false);
+    }
   };
 
   return (
@@ -119,11 +142,11 @@ const RespondentModal: React.FC<{
         <div className="text-center mb-8 relative z-10">
           <div className="mx-auto h-16 w-16 flex items-center justify-center rounded-full bg-emerald-50 mb-4 shadow-sm">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
-          <h3 className="text-2xl font-bold text-slate-900">Identificação</h3>
-          <p className="text-sm text-slate-500 mt-2">Personalize seu relatório ESG.</p>
+          <h3 className="text-2xl font-bold text-slate-900">Acesso Seguro</h3>
+          <p className="text-sm text-slate-500 mt-2">Identifique-se para iniciar o diagnóstico.</p>
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-5 relative z-10">
@@ -147,7 +170,18 @@ const RespondentModal: React.FC<{
               placeholder="Ex: Meio Ambiente"
             />
           </div>
-          {error && <p className="text-red-500 text-sm font-medium bg-red-50 p-2 rounded">{error}</p>}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Senha Numérica (6 dígitos)</label>
+            <input
+              type="password"
+              maxLength={6}
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-800 text-white placeholder-slate-400 border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all shadow-inner tracking-widest text-center text-lg"
+              placeholder="••••••"
+            />
+          </div>
+          {error && <p className="text-red-500 text-sm font-medium bg-red-50 p-2 rounded text-center">{error}</p>}
 
           <div className="mt-8 flex gap-4">
             <button
@@ -159,9 +193,10 @@ const RespondentModal: React.FC<{
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl font-bold hover:shadow-lg hover:scale-[1.02] transition-all duration-200"
+              disabled={loading}
+              className={`flex-1 px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl font-bold hover:shadow-lg hover:scale-[1.02] transition-all duration-200 ${loading ? 'opacity-70 cursor-wait' : ''}`}
             >
-              Iniciar
+              {loading ? 'Autenticando...' : 'Entrar'}
             </button>
           </div>
         </form>
@@ -197,8 +232,9 @@ const App: React.FC = () => {
   const [loginError, setLoginError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  // Load draft on mount
+  // Persistence Check on Mount
   useEffect(() => {
+    // 1. Check LocalStorage
     const draft = loadDraft();
     if (draft) {
       if (confirm('Encontramos um diagnóstico em andamento salvo neste dispositivo. Deseja continuar de onde parou?')) {
@@ -206,10 +242,25 @@ const App: React.FC = () => {
         setAnswers(draft.answers);
         setEvidences(draft.evidences);
         setView(View.ASSESSMENT);
+        return; // Don't check auth if we restored local
       } else {
         clearLocalProgress();
       }
     }
+
+    // 2. Check Auth Status (Persistence)
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+        if (user && view === View.HOME && !draft) {
+            // If user is already logged in, prompt to continue or start over? 
+            // For simplicity, we just set the respondentData uid but still show modal to confirm sector/name if missing
+            // Or ideally, fetch user profile. 
+            // Here we assume if they are logged in, they are "in".
+            // However, we need name/sector. 
+            // We'll let them login again to confirm details or simple auto-login logic if we had profile fetch.
+            // For this prompt, let's keep it simple: manual login triggers state.
+        }
+    });
+    return () => unsubscribe();
   }, []);
 
   // FIX: Scroll to top whenever the view changes
@@ -239,7 +290,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleModalSubmit = (data: RespondentData) => {
+  const handleLoginSuccess = (data: RespondentData) => {
     setRespondentData(data);
     setShowModal(false);
     setShowDisclaimer(true);
@@ -303,10 +354,10 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans overflow-x-hidden">
       <InactivityTimer isActive={view === View.ASSESSMENT} onTimeout={handleSessionTimeout} />
       
-      <RespondentModal 
+      <LoginModal 
         isOpen={showModal} 
         onClose={() => setShowModal(false)} 
-        onSubmit={handleModalSubmit} 
+        onLoginSuccess={handleLoginSuccess} 
       />
       
       <DisclaimerModal isOpen={showDisclaimer} onClose={handleDisclaimerClose} />

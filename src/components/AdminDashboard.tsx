@@ -5,24 +5,6 @@ import { CATEGORIES } from '../constants';
 import { Submission, TimeFrame, ActionPlanItem, AssessmentResult } from '../types';
 import Dashboard from './Dashboard';
 
-// Premium Color Palette
-const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
-
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-white/95 backdrop-blur-sm p-4 border border-slate-200 rounded-xl shadow-xl">
-        <p className="font-bold text-slate-800 mb-1">{label}</p>
-        <p className="text-sm font-semibold" style={{ color: payload[0].fill }}>
-          {payload[0].name}: {Number(payload[0].value).toFixed(1)}
-          {payload[0].name === 'Score' || payload[0].name === 'Maturidade' ? '%' : ''}
-        </p>
-      </div>
-    );
-  }
-  return null;
-};
-
 const AdminDashboard: React.FC = () => {
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);

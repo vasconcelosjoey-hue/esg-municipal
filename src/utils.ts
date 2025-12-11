@@ -1,11 +1,46 @@
 import { AnswersState, AnswerValue, AssessmentResult, MaturityLevel, ActionPlanItem, CategoryData, Submission, RespondentData, TimeFrame, Evidence, EvidencesState } from './types';
 import { CATEGORIES } from './constants';
-import { db, storage } from './firebase';
-import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, writeBatch } from 'firebase/firestore';
+import { db, storage, auth } from './firebase';
+import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, writeBatch, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 
 const COLLECTION_NAME = "submissions";
 const DRAFT_KEY = "esg_diagnostic_draft";
+
+// --- AUTH SYSTEM ---
+
+export const loginUser = async (name: string, pin: string) => {
+  // 1. Create synthetic email
+  const cleanName = name.trim().toLowerCase().replace(/\s+/g, '');
+  const email = `${cleanName}-${pin}@fake.esg`;
+  const password = `pwd-${pin}-secure`; // Synthetic password based on PIN
+
+  try {
+    // Try to login
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    return userCredential.user;
+  } catch (error: any) {
+    if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+      // If not found, create new user
+      try {
+        const newUserCredential = await createUserWithEmailAndPassword(auth, email, password);
+        // Save user profile to Firestore
+        await setDoc(doc(db, 'users', newUserCredential.user.uid), {
+          nome: name,
+          senha: pin, // Storing PIN for reference (low security requirement assumed for this POC)
+          uid: newUserCredential.user.uid,
+          createdAt: serverTimestamp()
+        });
+        return newUserCredential.user;
+      } catch (createError: any) {
+        throw new Error("Erro ao criar conta: " + createError.message);
+      }
+    } else {
+      throw new Error("Erro no login: " + error.message);
+    }
+  }
+};
 
 // --- CORE CALCULATION LOGIC ---
 
@@ -29,8 +64,8 @@ export const calculateScore = (answers: AnswersState): AssessmentResult => {
       } else if (answer === AnswerValue.NO) {
         catMax += 1;
       }
-      // Se não respondida, não soma ao max (assume que ainda vai responder)
-      // Se respondida como NO, soma 1 ao max, mas 0 ao score (penaliza)
+      // N/A is treated as NO in denominator (maxScore), but 0 in numerator. 
+      // Since N/A option is removed from UI, this logic naturally falls to NO or unselected.
     });
 
     const percentage = catMax > 0 ? (catScore / catMax) * 100 : 0;
@@ -60,7 +95,7 @@ export interface DraftData {
 }
 
 export const saveDraft = (respondent: RespondentData | null, answers: AnswersState, evidences: EvidencesState) => {
-  if (!respondent) return; // Don't save if we don't know who it is yet
+  if (!respondent) return; 
   const draft: DraftData = {
     respondent,
     answers,
@@ -68,7 +103,6 @@ export const saveDraft = (respondent: RespondentData | null, answers: AnswersSta
     timestamp: Date.now()
   };
   localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-  console.log("Autosave: Draft updated locally.");
 };
 
 export const loadDraft = (): DraftData | null => {
@@ -86,14 +120,45 @@ export const clearLocalProgress = () => {
   localStorage.removeItem(DRAFT_KEY);
 };
 
+// --- REALTIME FIRESTORE SAVING ---
+
+export const saveAnswerToFirestore = async (uid: string, questionId: string, value: AnswerValue) => {
+  if (!uid) return;
+  try {
+    // /submissions/{uid}/respostas/{questionId}
+    const docRef = doc(db, 'submissions', uid, 'respostas', questionId);
+    await setDoc(docRef, {
+      resposta: value,
+      timestamp: serverTimestamp()
+    }, { merge: true });
+  } catch (e) {
+    console.error("Erro no autosave nuvem:", e);
+  }
+};
+
+export const saveEvidenceMetadataToFirestore = async (uid: string, questionId: string, metadata: Partial<Evidence>) => {
+    if(!uid) return;
+    try {
+        const docRef = doc(db, 'evidencias', uid, 'itens', questionId);
+        await setDoc(docRef, {
+            ...metadata,
+            updatedAt: serverTimestamp()
+        }, { merge: true });
+    } catch (e) {
+        console.error("Erro ao salvar metadados de evidencia:", e);
+    }
+}
+
 // --- EVIDENCE MANAGEMENT ---
 
 export const uploadEvidence = async (
-  tempSubmissionId: string, // Use a temporary UUID for the session or respondent ID
+  uid: string, 
   questionId: string, 
   file: File
 ): Promise<{ url: string; metadata: Partial<Evidence> }> => {
   
+  if (!uid) throw new Error("Usuário não identificado.");
+
   // 1. Validation
   const MAX_SIZE = 1024 * 1024; // 1MB
   const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'application/pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
@@ -101,33 +166,33 @@ export const uploadEvidence = async (
   if (file.size > MAX_SIZE) throw new Error("Arquivo excede 1MB.");
   if (!ALLOWED_TYPES.includes(file.type)) throw new Error("Formato inválido. Use JPG, PNG, PDF, DOCX ou XLSX.");
 
-  // 2. Path: evidences/{submissionId}/{questionId}/{filename}
-  const storagePath = `evidences/${tempSubmissionId}/${questionId}/${file.name}`;
+  // 2. Path: evidences/{uid}/{questionId}/{filename}
+  const storagePath = `evidencias/${uid}/${questionId}/${file.name}`;
   const storageRef = ref(storage, storagePath);
 
   // 3. Upload
   await uploadBytes(storageRef, file);
   const url = await getDownloadURL(storageRef);
 
-  return {
-    url,
-    metadata: {
+  const metadata = {
       fileName: file.name,
       fileType: file.type,
-      fileSize: file.size
-    }
+      fileSize: file.size,
+      fileUrl: url
   };
+
+  // Save metadata to firestore immediately
+  await saveEvidenceMetadataToFirestore(uid, questionId, metadata);
+
+  return { url, metadata };
 };
 
 export const deleteEvidenceFile = async (fileUrl: string) => {
     try {
-        // Create a ref from URL is tricky if token is present, better to store path.
-        // For simplicity in this prompt context, we assume the user replaces the file or we handle cleanup later.
-        // A proper implementation parses the URL to get the ref.
         const storageRef = ref(storage, fileUrl);
         await deleteObject(storageRef);
     } catch (e) {
-        console.warn("Could not delete file from storage (might act as soft delete)", e);
+        console.warn("Could not delete file from storage", e);
     }
 };
 
@@ -146,21 +211,21 @@ export const saveSubmission = async (
     result: AssessmentResult
 ): Promise<SaveResult> => {
   
-  // Generate Final ID
-  const submissionId = crypto.randomUUID();
+  // Use UID as document ID if available, else random
+  const docId = respondent.uid || crypto.randomUUID();
   
   const submission = {
-    id: submissionId,
+    id: docId,
     timestamp: new Date().toISOString(),
     respondent,
-    answers,
-    evidences, // Metadata and links
+    answers, // We keep the aggregate here for easy Admin Dashboard reading
+    evidences, // Metadata
     result
   };
 
   try {
-    // 1. Save to Firestore
-    await addDoc(collection(db, COLLECTION_NAME), submission);
+    // 1. Save to Firestore (Overwrite if exists to update final status)
+    await setDoc(doc(db, COLLECTION_NAME, docId), submission);
     
     // 2. Clear Local Draft
     clearLocalProgress();
@@ -168,7 +233,6 @@ export const saveSubmission = async (
     return { savedToCloud: true, savedLocal: false };
   } catch (err: any) {
     console.error("Erro ao salvar no Firebase:", err);
-    // Fallback: Keep local draft
     return { savedToCloud: false, savedLocal: true, error: err.message };
   }
 };

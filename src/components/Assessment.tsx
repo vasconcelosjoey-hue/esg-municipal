@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { CATEGORIES } from '../constants';
 import { AnswerValue, AnswersState, EvidencesState, RespondentData } from '../types';
-import { uploadEvidence, saveDraft, deleteEvidenceFile } from '../utils';
+import { uploadEvidence, saveDraft, deleteEvidenceFile, saveAnswerToFirestore } from '../utils';
 
 interface Props {
   answers: AnswersState;
@@ -18,11 +18,11 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [expandedEvidenceId, setExpandedEvidenceId] = useState<string | null>(null);
   const [autosaveStatus, setAutosaveStatus] = useState<'saved' | 'saving'>('saved');
-  const [tempSubmissionId] = useState(() => crypto.randomUUID()); // Stable ID for draft uploads
+  // const [tempSubmissionId] = useState(() => crypto.randomUUID()); // Removed: Use respondent.uid
 
   const allQuestionIds = useRef<string[]>(CATEGORIES.flatMap(c => c.questions.map(q => q.id)));
 
-  // Trigger Autosave on changes
+  // Trigger Local Autosave on changes
   useEffect(() => {
     setAutosaveStatus('saving');
     const timer = setTimeout(() => {
@@ -46,29 +46,40 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
   const handleOptionSelect = (questionId: string, value: AnswerValue) => {
       onAnswerChange(questionId, value);
       
+      // REALTIME CLOUD SAVE (Prompt 2)
+      if (respondent.uid) {
+          saveAnswerToFirestore(respondent.uid, questionId, value);
+      }
+
       if(missingIds.includes(questionId)) {
           setMissingIds(prev => prev.filter(id => id !== questionId));
       }
 
-      // Auto-scroll logic (Robust)
+      // Robust Auto-scroll logic
       const currentIndex = allQuestionIds.current.indexOf(questionId);
       if (currentIndex !== -1 && currentIndex < allQuestionIds.current.length - 1) {
           const nextQuestionId = allQuestionIds.current[currentIndex + 1];
-          // Use setTimeout to allow state update and potential UI re-render (accordion closing etc)
+          // Use setTimeout to allow state update and potential UI re-render
           setTimeout(() => {
               const nextEl = document.getElementById(`question-${nextQuestionId}`);
               if (nextEl) {
                   // Ensure we scroll the element into view centered
                   nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
               }
-          }, 300); // 300ms is usually a sweet spot for UX
+          }, 300); 
       }
   };
 
   const handleFileUpload = async (questionId: string, file: File) => {
+      if (!respondent.uid) {
+          alert("Erro: Sessão inválida. Por favor, faça login novamente.");
+          return;
+      }
+
       setUploadingId(questionId);
       try {
-          const { url, metadata } = await uploadEvidence(tempSubmissionId, questionId, file);
+          // Use Auth UID for path (Prompt 3)
+          const { url, metadata } = await uploadEvidence(respondent.uid, questionId, file);
           const currentEvidence = evidences[questionId] || { questionId, comment: '', timestamp: new Date().toISOString() };
           
           onEvidenceChange(questionId, {
@@ -148,7 +159,7 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
       {/* Autosave Indicator */}
       <div className="fixed top-24 right-4 z-40 bg-white/90 backdrop-blur border border-slate-200 px-3 py-1 rounded-full shadow-sm text-xs font-bold text-slate-500 flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${autosaveStatus === 'saving' ? 'bg-yellow-400 animate-pulse' : 'bg-emerald-500'}`}></div>
-          {autosaveStatus === 'saving' ? 'Salvando...' : 'Salvo'}
+          {autosaveStatus === 'saving' ? 'Salvando...' : 'Salvo na Nuvem'}
       </div>
 
       {/* Floating Progress Bubble */}

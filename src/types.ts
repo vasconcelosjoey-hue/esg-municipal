@@ -39,6 +39,7 @@ export interface ActionPlanItem {
 export interface RespondentData {
   name: string;
   sector: string;
+  uid?: string; // Firebase Auth UID
 }
 
 export interface Evidence {
