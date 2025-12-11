@@ -1,14 +1,30 @@
 import React, { useMemo } from 'react';
-import { AssessmentResult, MaturityLevel, ActionPlanItem, RespondentData, TimeFrame } from '../types';
+import { AssessmentResult, MaturityLevel, ActionPlanItem, RespondentData, TimeFrame, EvidencesState } from '../types';
 import { generateFullActionPlan } from '../utils';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, PieChart, Pie, Cell, Tooltip } from 'recharts';
+import { CATEGORIES } from '../constants';
 
 interface Props {
   result: AssessmentResult;
   respondentData: RespondentData | null;
+  // If evidences are passed to dashboard (needs checking App.tsx if passed)
+  // For now assuming result might have it or we fetch it? 
+  // In App.tsx Dashboard is used inside AdminDashboard (which passes data) AND inside App (success/view).
+  // Ideally Dashboard should accept evidences prop.
 }
 
-const Dashboard: React.FC<Props> = ({ result, respondentData }) => {
+// Updating Props to include evidence if available (AdminDashboard passes result which contains evidences? No, Submission does.)
+// Let's assume Dashboard needs to receive evidences or look at result. But result doesn't have evidences.
+// We need to update the Component signature to accept 'evidences' prop if we want to show them.
+// But wait, the previous code in AdminDashboard passed: <Dashboard result={selectedSubmission.result} respondentData={selectedSubmission.respondent} />
+// I need to update AdminDashboard to pass evidences too. And App.tsx too.
+
+// However, to keep it simple and consistent with "Fix 4", I will modify Dashboard to accept `evidences`.
+interface ExtendedProps extends Props {
+    evidences?: EvidencesState;
+}
+
+const Dashboard: React.FC<ExtendedProps> = ({ result, respondentData, evidences }) => {
   const actions = useMemo(() => generateFullActionPlan(result), [result]);
   
   const chartData = Object.entries(result.categoryScores).map(([key, val]) => ({
@@ -151,6 +167,32 @@ const Dashboard: React.FC<Props> = ({ result, respondentData }) => {
                 </div>
             </div>
 
+            {/* Evidence Section - Added for Print Transparency */}
+            {evidences && Object.keys(evidences).length > 0 && (
+                <div className="mb-8 break-inside-avoid">
+                    <h2 className="animus-section-title">Evidências e Observações</h2>
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                        {CATEGORIES.map(cat => {
+                            const catEvidences = cat.questions.filter(q => evidences[q.id] && (evidences[q.id].comment || evidences[q.id].fileUrl));
+                            if (catEvidences.length === 0) return null;
+                            
+                            return (
+                                <div key={cat.id} className="mb-4 last:mb-0">
+                                    <h4 className="font-bold text-xs uppercase text-slate-500 mb-2">{cat.title}</h4>
+                                    {catEvidences.map(q => (
+                                        <div key={q.id} className="mb-2 text-sm bg-white p-2 rounded border border-slate-100">
+                                            <p className="font-bold text-slate-800 text-xs mb-1">{q.text}</p>
+                                            {evidences[q.id].comment && <p className="text-slate-600 mb-1">"{evidences[q.id].comment}"</p>}
+                                            {evidences[q.id].fileUrl && <p className="text-[10px] text-blue-600 italic">📎 Anexo: {evidences[q.id].fileName}</p>}
+                                        </div>
+                                    ))}
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
+
             <h2 className="animus-section-title">Plano de Ação Sugerido</h2>
             <div className="animus-grid-actions">
                 {(['1 Mês', '3 Meses', '6 Meses', '1 Ano'] as TimeFrame[]).map((timeframe) => {
@@ -177,13 +219,6 @@ const Dashboard: React.FC<Props> = ({ result, respondentData }) => {
                         </div>
                     );
                 })}
-            </div>
-
-            {/* Evidence Note for PDF */}
-            <div className="mt-8 border-t border-slate-300 pt-4">
-                 <p className="text-[9px] text-slate-500 italic">
-                     * Notas de auditoria: Este relatório pode conter referências a evidências digitais (arquivos, fotos, documentos) anexados durante o preenchimento. Para visualizar ou baixar os anexos originais, acesse o Painel Administrativo do sistema ESG.
-                 </p>
             </div>
         </div>
 

@@ -50,16 +50,18 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
           setMissingIds(prev => prev.filter(id => id !== questionId));
       }
 
-      // Auto-scroll (only if not expanding evidence)
-      if (!expandedEvidenceId) {
-          const currentIndex = allQuestionIds.current.indexOf(questionId);
-          if (currentIndex !== -1 && currentIndex < allQuestionIds.current.length - 1) {
-              const nextQuestionId = allQuestionIds.current[currentIndex + 1];
-              setTimeout(() => {
-                  const nextEl = document.getElementById(`question-${nextQuestionId}`);
-                  if (nextEl) nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }, 400); 
-          }
+      // Auto-scroll logic (Robust)
+      const currentIndex = allQuestionIds.current.indexOf(questionId);
+      if (currentIndex !== -1 && currentIndex < allQuestionIds.current.length - 1) {
+          const nextQuestionId = allQuestionIds.current[currentIndex + 1];
+          // Use setTimeout to allow state update and potential UI re-render (accordion closing etc)
+          setTimeout(() => {
+              const nextEl = document.getElementById(`question-${nextQuestionId}`);
+              if (nextEl) {
+                  // Ensure we scroll the element into view centered
+                  nextEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+          }, 300); // 300ms is usually a sweet spot for UX
       }
   };
 
@@ -215,7 +217,6 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
                           { label: 'SIM', value: AnswerValue.YES, baseClass: 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100', activeClass: 'bg-emerald-600 text-white border-emerald-600 ring-emerald-300' },
                           { label: 'PARCIAL', value: AnswerValue.PARTIAL, baseClass: 'bg-amber-50 text-slate-900 border-amber-200 hover:bg-amber-100', activeClass: 'bg-amber-300 text-black border-amber-400 ring-amber-200' },
                           { label: 'NÃO', value: AnswerValue.NO, baseClass: 'bg-red-50 text-slate-900 border-red-200 hover:bg-red-100', activeClass: 'bg-red-300 text-black border-red-400 ring-red-200' },
-                          { label: 'N/A', value: AnswerValue.NA, baseClass: 'bg-slate-50 text-slate-900 border-slate-200 hover:bg-slate-100', activeClass: 'bg-slate-300 text-black border-slate-400 ring-slate-200' },
                         ].map((option) => {
                            const isActive = answers[q.id] === option.value;
                            return (

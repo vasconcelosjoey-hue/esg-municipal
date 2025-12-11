@@ -29,6 +29,8 @@ export const calculateScore = (answers: AnswersState): AssessmentResult => {
       } else if (answer === AnswerValue.NO) {
         catMax += 1;
       }
+      // Se não respondida, não soma ao max (assume que ainda vai responder)
+      // Se respondida como NO, soma 1 ao max, mas 0 ao score (penaliza)
     });
 
     const percentage = catMax > 0 ? (catScore / catMax) * 100 : 0;
