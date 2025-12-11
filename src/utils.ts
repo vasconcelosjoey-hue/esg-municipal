@@ -134,7 +134,6 @@ export const clearLocalProgress = () => {
 export const saveAnswerToFirestore = async (uid: string, questionId: string, value: AnswerValue) => {
   if (!uid) return;
   try {
-    // Saves to specific user subcollection: submissions/{uid}/respostas/{questionId}
     const docRef = doc(db, 'submissions', uid, 'respostas', questionId);
     await setDoc(docRef, {
       resposta: value,
@@ -152,12 +151,12 @@ export const uploadEvidence = async (
   questionId: string, 
   file: File,
   comment?: string
-): Promise<{ url: string; metadata: Partial<Evidence> }> => {
+): Promise<{ metadata: Partial<Evidence> }> => {
   
   if (!uid) throw new Error("Usuário não identificado.");
 
   // 1. Validation
-  const MAX_SIZE = 1 * 1024 * 1024; // 1MB exact
+  const MAX_SIZE = 1 * 1024 * 1024; // 1MB
   const ALLOWED_TYPES = [
       'image/jpeg', 
       'image/jpg', 
@@ -185,7 +184,15 @@ export const uploadEvidence = async (
   try {
       // 4. Perform Upload
       await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
+      
+      // Note: We attempt to get the URL, but if the respondent doesn't have READ permission
+      // (which is secure), this might fail. We proceed anyway because the Admin can read it later using the path.
+      let url = '';
+      try {
+          url = await getDownloadURL(storageRef);
+      } catch (readError) {
+          console.warn("Usuário não tem permissão de leitura (esperado). URL será gerada pelo Admin.");
+      }
 
       const metadata: Partial<Evidence> = {
           fileName: file.name,
@@ -198,10 +205,10 @@ export const uploadEvidence = async (
           timestamp: new Date().toISOString()
       };
 
-      // 5. Save Metadata to Firestore Answer Document
+      // 5. Save Metadata to Firestore
       await setDoc(answerDocRef, {
           evidenciaPath: storagePath,
-          evidenciaUrl: url,
+          evidenciaUrl: url, // Might be empty string, OK.
           evidenciaNome: file.name,
           evidenciaTipo: file.type,
           evidenciaTamanho: file.size,
@@ -209,7 +216,7 @@ export const uploadEvidence = async (
           atualizadoEm: serverTimestamp()
       }, { merge: true });
 
-      return { url, metadata };
+      return { metadata };
   } catch (error: any) {
       console.error("Upload error:", error);
       if (error.code === 'storage/unauthorized') {
@@ -240,8 +247,59 @@ export const deleteEvidence = async (uid: string, questionId: string, storagePat
         
     } catch (e: any) {
         console.error("Erro ao deletar evidência:", e);
+        // Be resilient: if file not found in storage, still clear firestore
+        if (e.code === 'storage/object-not-found') {
+             const answerDocRef = doc(db, 'submissions', uid, 'respostas', questionId);
+             await updateDoc(answerDocRef, {
+                evidenciaPath: deleteField(),
+                evidenciaUrl: deleteField(),
+                evidenciaNome: deleteField(),
+                evidenciaTipo: deleteField(),
+                evidenciaTamanho: deleteField(),
+                atualizadoEm: serverTimestamp()
+            });
+            return;
+        }
         throw new Error("Falha ao remover arquivo. " + e.message);
     }
+};
+
+export const fetchSubmissionDetails = async (uid: string): Promise<EvidencesState> => {
+    const evidences: EvidencesState = {};
+    try {
+        // Look into the subcollection: submissions/{uid}/respostas
+        const q = query(collection(db, 'submissions', uid, 'respostas'));
+        const snapshot = await getDocs(q);
+
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const qId = doc.id;
+
+            // Only care about entries that have evidence
+            if (data.evidenciaPath) {
+                evidences[qId] = {
+                    questionId: qId,
+                    comment: data.comentario || '',
+                    fileUrl: data.evidenciaUrl || '',
+                    fileName: data.evidenciaNome,
+                    fileType: data.evidenciaTipo,
+                    fileSize: data.evidenciaTamanho,
+                    storagePath: data.evidenciaPath,
+                    timestamp: data.atualizadoEm?.toDate?.().toISOString() || new Date().toISOString()
+                };
+            } else if (data.comentario) {
+                // Also capture comments without files
+                evidences[qId] = {
+                    questionId: qId,
+                    comment: data.comentario,
+                    timestamp: new Date().toISOString()
+                };
+            }
+        });
+    } catch (e) {
+        console.error("Error fetching submission details:", e);
+    }
+    return evidences;
 };
 
 export const fetchRespondentProgress = async (uid: string): Promise<{ answers: AnswersState, evidences: EvidencesState }> => {
@@ -260,11 +318,12 @@ export const fetchRespondentProgress = async (uid: string): Promise<{ answers: A
                 answers[qId] = data.resposta as AnswerValue;
             }
             
-            if (data.evidenciaPath && data.evidenciaUrl) {
+            // Reconstruct evidence object even if URL is missing (respondent can't read)
+            if (data.evidenciaPath) {
                 evidences[qId] = {
                     questionId: qId,
                     comment: data.comentario || '',
-                    fileUrl: data.evidenciaUrl,
+                    fileUrl: data.evidenciaUrl || '', 
                     fileName: data.evidenciaNome,
                     fileType: data.evidenciaTipo,
                     fileSize: data.evidenciaTamanho,
@@ -301,7 +360,6 @@ export const saveSubmission = async (
     result: AssessmentResult
 ): Promise<SaveResult> => {
   
-  // Use UID as document ID to ensure 1:1 mapping and security rules compliance
   const docId = respondent.uid;
 
   if (!docId) {
@@ -318,7 +376,6 @@ export const saveSubmission = async (
   };
 
   try {
-    // Save to submissions/{uid}
     await setDoc(doc(db, COLLECTION_NAME, docId), submission, { merge: true });
     clearLocalProgress();
     return { savedToCloud: true, savedLocal: false };

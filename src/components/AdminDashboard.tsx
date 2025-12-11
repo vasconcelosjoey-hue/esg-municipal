@@ -1,13 +1,14 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { getSubmissions, generateFullActionPlan, deleteSubmission, clearAllSubmissions } from '../utils';
+import { getSubmissions, generateFullActionPlan, deleteSubmission, clearAllSubmissions, fetchSubmissionDetails } from '../utils';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, PieChart, Pie, Legend, Tooltip, AreaChart, Area } from 'recharts';
 import { CATEGORIES } from '../constants';
-import { Submission, TimeFrame, ActionPlanItem, AssessmentResult } from '../types';
+import { Submission, TimeFrame, ActionPlanItem, AssessmentResult, Evidence, EvidencesState } from '../types';
 import Dashboard from './Dashboard';
 import AdminEvidenceViewer from './AdminEvidenceViewer';
 
 const AdminDashboard: React.FC = () => {
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
+  const [detailedEvidences, setDetailedEvidences] = useState<EvidencesState>({});
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -32,6 +33,20 @@ const AdminDashboard: React.FC = () => {
   }, [refreshKey]);
 
   const handleRefresh = () => setRefreshKey(prev => prev + 1);
+
+  const handleSelectSubmission = async (sub: Submission) => {
+      // 1. Set the main submission data first
+      setSelectedSubmission(sub);
+      setDetailedEvidences({}); // Clear previous details
+
+      // 2. Fetch the detailed evidence from subcollection
+      try {
+          const details = await fetchSubmissionDetails(sub.id);
+          setDetailedEvidences(details);
+      } catch (e) {
+          console.error("Erro ao carregar evidências:", e);
+      }
+  };
 
   // --- AGGREGATE CALCS ---
   const aggregateResult: AssessmentResult | null = useMemo(() => {
@@ -105,25 +120,33 @@ const AdminDashboard: React.FC = () => {
                 </button>
              </div>
              
-             {/* Evidence Section for Admin */}
-             {selectedSubmission.evidences && Object.keys(selectedSubmission.evidences).length > 0 && (
+             {/* Evidence Section for Admin - Fetched from DetailedEvidences */}
+             {Object.keys(detailedEvidences).length > 0 ? (
                  <div className="no-print mx-4 md:mx-0 mb-8 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                     <h3 className="font-bold text-lg mb-4 text-slate-800">📂 Evidências Anexadas</h3>
+                     <h3 className="font-bold text-lg mb-4 text-slate-800">📂 Evidências e Comentários</h3>
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                         {Object.values(selectedSubmission.evidences)
-                             .filter(ev => ev.fileUrl)
-                             .map((ev, idx) => (
+                         {Object.values(detailedEvidences)
+                             .map((ev: Evidence, idx) => (
                                  <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                                      <p className="text-[10px] font-bold uppercase text-slate-400 mb-2">Questão ID: {ev.questionId}</p>
-                                     <AdminEvidenceViewer evidence={ev} />
+                                     {ev.comment && (
+                                         <div className="mb-2 p-2 bg-white rounded border border-slate-100 text-xs italic text-slate-600">
+                                             "{ev.comment}"
+                                         </div>
+                                     )}
+                                     {ev.fileUrl && <AdminEvidenceViewer evidence={ev} />}
                                  </div>
                              ))
                          }
                      </div>
                  </div>
+             ) : (
+                 <div className="no-print mx-4 md:mx-0 mb-8 bg-slate-50 p-6 rounded-2xl border border-slate-200 border-dashed text-center text-slate-400 text-sm font-bold">
+                     Nenhuma evidência ou comentário anexado.
+                 </div>
              )}
 
-             <Dashboard result={selectedSubmission.result} respondentData={selectedSubmission.respondent} evidences={selectedSubmission.evidences} />
+             <Dashboard result={selectedSubmission.result} respondentData={selectedSubmission.respondent} evidences={detailedEvidences} />
         </div>
       );
   }
@@ -268,6 +291,61 @@ const AdminDashboard: React.FC = () => {
               <span className="font-bold uppercase tracking-widest text-[7pt] text-slate-400">Relatório ESG Municipal</span>
               <span className="text-[7pt] text-slate-400">Confidencial • Uso Interno</span>
           </div>
+      </div>
+
+      {/* DETAILED SUBMISSIONS TABLE */}
+      <div className="mx-4 md:mx-0 bg-white rounded-3xl shadow-lg border border-slate-200 overflow-hidden print:border-2 print:border-slate-800 print:shadow-none print:break-before-page">
+         <div className="px-6 py-6 md:px-10 md:py-8 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+            <div>
+                <h3 className="font-black text-xl md:text-2xl text-slate-900">Diagnósticos Individuais</h3>
+                <p className="text-slate-600 text-sm md:text-base mt-1">Detalhamento dos {submissions.length} registros realizados.</p>
+            </div>
+         </div>
+         <div className="overflow-x-auto">
+             <table className="min-w-full divide-y divide-slate-100">
+                 <thead className="bg-white">
+                     <tr>
+                         <th className="px-6 py-4 md:px-10 md:py-5 text-left text-xs md:text-sm font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Respondente</th>
+                         <th className="px-6 py-4 md:px-10 md:py-5 text-left text-xs md:text-sm font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Setor</th>
+                         <th className="px-6 py-4 md:px-10 md:py-5 text-left text-xs md:text-sm font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Data</th>
+                         <th className="px-6 py-4 md:px-10 md:py-5 text-left text-xs md:text-sm font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Maturidade</th>
+                         <th className="px-6 py-4 md:px-10 md:py-5 text-left text-xs md:text-sm font-black text-slate-400 uppercase tracking-wider no-print whitespace-nowrap">Ação</th>
+                     </tr>
+                 </thead>
+                 <tbody className="bg-white divide-y divide-slate-50">
+                     {submissions.map((sub) => (
+                         <tr key={sub.id} className="hover:bg-slate-50 transition-colors group">
+                             <td className="px-6 py-4 md:px-10 md:py-6">
+                                 <div className="font-bold text-sm md:text-lg text-slate-900">{sub.respondent.name}</div>
+                             </td>
+                             <td className="px-6 py-4 md:px-10 md:py-6 text-sm md:text-base font-medium text-slate-600">{sub.respondent.sector}</td>
+                             <td className="px-6 py-4 md:px-10 md:py-6 text-sm md:text-base font-medium text-slate-500">{new Date(sub.timestamp).toLocaleDateString('pt-BR')}</td>
+                             <td className="px-6 py-4 md:px-10 md:py-6">
+                                 <div className="flex items-center gap-3">
+                                     <span className={`font-black text-lg md:text-xl ${sub.result.percentage < 40 ? 'text-red-600' : sub.result.percentage < 80 ? 'text-amber-500' : 'text-emerald-600'}`}>
+                                         {sub.result.percentage.toFixed(0)}%
+                                     </span>
+                                     <span className={`px-2 py-1 md:px-3 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-wide border whitespace-nowrap ${sub.result.percentage < 40 ? 'bg-red-50 text-red-700 border-red-200' : sub.result.percentage < 80 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                                         {sub.result.level}
+                                     </span>
+                                 </div>
+                             </td>
+                             <td className="px-6 py-4 md:px-10 md:py-6 no-print">
+                                 <button 
+                                    onClick={() => handleSelectSubmission(sub)}
+                                    className="text-emerald-700 font-bold text-xs md:text-sm bg-emerald-50 border border-emerald-100 px-3 py-2 md:px-5 md:py-3 rounded-xl hover:bg-emerald-600 hover:text-white hover:shadow-lg transition-all active:scale-95 flex items-center gap-2 whitespace-nowrap"
+                                 >
+                                     Ver Detalhes
+                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 hidden md:block" viewBox="0 0 20 20" fill="currentColor">
+                                         <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                                     </svg>
+                                 </button>
+                             </td>
+                         </tr>
+                     ))}
+                 </tbody>
+             </table>
+         </div>
       </div>
     </div>
   );

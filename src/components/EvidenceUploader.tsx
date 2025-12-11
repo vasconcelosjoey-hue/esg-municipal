@@ -38,6 +38,8 @@ const EvidenceUploader: React.FC<EvidenceUploaderProps> = ({ uid, questionId, co
                 alert(error.message);
                 setUploading(false);
                 setProgress(0);
+                // Clear input
+                e.target.value = '';
             }
         }
     };
@@ -54,7 +56,7 @@ const EvidenceUploader: React.FC<EvidenceUploaderProps> = ({ uid, questionId, co
         }
     };
 
-    if (currentEvidence?.fileUrl) {
+    if (currentEvidence?.fileName) {
         return (
             <div className="bg-white border border-emerald-200 rounded-lg p-3 flex items-center justify-between shadow-sm animate-fade-in">
                 <div className="flex items-center gap-3 overflow-hidden">
@@ -64,7 +66,7 @@ const EvidenceUploader: React.FC<EvidenceUploaderProps> = ({ uid, questionId, co
                     <div className="min-w-0">
                         <p className="font-bold text-slate-800 text-sm truncate" title={currentEvidence.fileName}>{currentEvidence.fileName}</p>
                         <p className="text-xs text-slate-400">
-                             {currentEvidence.fileSize ? (currentEvidence.fileSize / 1024).toFixed(1) + ' KB' : 'Arquivo'} • <span className="text-emerald-600 font-bold">Enviado ✔</span>
+                             {currentEvidence.fileSize ? (currentEvidence.fileSize / 1024).toFixed(1) + ' KB' : 'Arquivo'} • <span className="text-emerald-600 font-bold">✔ Evidência Anexada</span>
                         </p>
                     </div>
                 </div>

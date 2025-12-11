@@ -85,19 +85,6 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
       setExpandedEvidenceId(prev => prev === id ? null : id);
   };
 
-  const handlePreview = (url: string, type: string = '', name: string) => {
-      if (type.includes('image') || type.includes('pdf')) {
-          if (type.includes('pdf')) {
-              window.open(url, '_blank');
-          } else {
-              setPreviewEvidence({ url, type, name });
-          }
-      } else {
-          alert("Preview indisponível para este formato. Por favor, faça o download.");
-          window.open(url, '_blank');
-      }
-  };
-
   const handleFinishAttempt = () => {
     const missing: string[] = [];
     CATEGORIES.forEach(cat => {
@@ -147,17 +134,6 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
           {autosaveStatus === 'saving' ? 'Salvando...' : 'Salvo na Nuvem'}
       </div>
 
-      {/* Preview Modal */}
-      {previewEvidence && (
-          <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black bg-opacity-90 p-4" onClick={() => setPreviewEvidence(null)}>
-              <div className="relative max-w-4xl max-h-[90vh] w-full flex flex-col items-center">
-                  <button onClick={() => setPreviewEvidence(null)} className="absolute -top-10 right-0 text-white font-bold text-xl hover:text-red-400">Fechar ✕</button>
-                  <img src={previewEvidence.url} alt="Preview" className="max-w-full max-h-[85vh] rounded-lg shadow-2xl" />
-                  <p className="text-white mt-2 font-bold">{previewEvidence.name}</p>
-              </div>
-          </div>
-      )}
-
       {/* Floating Progress Bubble */}
       <div className="fixed bottom-6 left-4 sm:left-8 z-[70] animate-fade-in-up print:hidden">
         <div className="relative group cursor-default">
@@ -193,7 +169,7 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
             {category.questions.map((q) => {
               const isMissing = missingIds.includes(q.id) && !answers[q.id];
               globalQuestionCounter++;
-              const hasEvidence = evidences[q.id] && evidences[q.id].fileUrl;
+              const hasEvidence = evidences[q.id] && evidences[q.id].fileName;
               const evidenceData = evidences[q.id];
               const isExpanded = expandedEvidenceId === q.id;
 
