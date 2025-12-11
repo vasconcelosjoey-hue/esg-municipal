@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ESG Municipal Diagnostic</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700;900&display=swap'); /* Fonte Serifada para Títulos Premium */
+      
+      body {
+        font-family: 'Inter', sans-serif;
+      }
+      
+      @media print {
+        @page {
+          margin: 10mm 14mm; /* Margens Premium solicitadas */
+          size: A4;
+        }
+        
+        body {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+          background-color: white !important;
+          color: #111827 !important; /* Slate-900 absolute black */
+        }
+
+        /* --- TYPOGRAPHY HIERARCHY (McKinsey Style) --- */
+        .print-title-main {
+            font-family: 'Merriweather', serif;
+            font-size: 24pt !important;
+            font-weight: 900 !important;
+            line-height: 1.1 !important;
+            color: #0f172a !important;
+            letter-spacing: -0.5px;
+        }
+        
+        .print-title-section {
+            font-family: 'Inter', sans-serif;
+            font-size: 14pt !important;
+            font-weight: 700 !important;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 4px;
+            margin-bottom: 8px;
+            margin-top: 12px;
+        }
+
+        .print-subtitle {
+            font-size: 11pt !important;
+            font-weight: 600 !important;
+            color: #334155 !important;
+            margin-bottom: 4px;
+        }
+
+        .print-text {
+            font-size: 9pt !important;
+            line-height: 1.3 !important;
+            color: #1e293b !important;
+            text-align: justify;
+        }
+        
+        .print-caption {
+            font-size: 8pt !important;
+            color: #64748b !important;
+        }
+
+        /* --- LAYOUT UTILITIES --- */
+        .no-print { display: none !important; }
+        .print-break-inside-avoid { break-inside: avoid; }
+        
+        /* Remove UI noise */
+        .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl { box-shadow: none !important; }
+        .rounded-2xl, .rounded-3xl, .rounded-xl, .rounded-lg { border-radius: 0px !important; }
+        .bg-slate-50, .bg-slate-100 { background-color: white !important; }
+        button { display: none !important; }
+
+        /* --- GRID SYSTEM --- */
+        .print-grid-exec {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 20px !important;
+            align-items: start;
+        }
+
+        .print-grid-3 {
+            display: grid !important;
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 12px !important;
+        }
+
+        .print-grid-5 {
+            display: grid !important;
+            grid-template-columns: repeat(5, 1fr) !important;
+            gap: 8px !important;
+        }
+
+        /* Border Cleanups */
+        .print-border { border: 1px solid #e2e8f0 !important; }
+        .print-border-b { border-bottom: 1px solid #e2e8f0 !important; }
+        .print-no-border { border: none !important; }
+
+        /* Specific Component Overrides */
+        .recharts-wrapper { margin: 0 auto !important; }
+      }
+
+      /* Web Animations (kept for screen) */
+      @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-20px); } 100% { transform: translateY(0px); } }
+      .animate-float { animation: float 6s ease-in-out infinite; }
+      .animate-fade-in { animation: fadeInUp 0.5s ease-out forwards; }
+      @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.1",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.1/",
+    "react/": "https://esm.sh/react@^19.2.1/",
+    "firebase/": "https://esm.sh/firebase@^12.6.0/",
+    "recharts": "https://esm.sh/recharts@^3.5.1",
+    "vite": "https://esm.sh/vite@^7.2.7",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
+  }
+}
+</script>
+</head>
+  <body class="bg-slate-50 text-slate-900 antialiased selection:bg-emerald-200 selection:text-emerald-900">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

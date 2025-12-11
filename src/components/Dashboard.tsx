@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { AssessmentResult, MaturityLevel, ActionPlanItem, RespondentData, TimeFrame } from '../types';
 import { generateFullActionPlan } from '../utils';
-import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, PieChart, Pie, Cell, Tooltip } from 'recharts';
+import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, PieChart, Pie, Cell } from 'recharts';
 
 interface Props {
   result: AssessmentResult;
@@ -18,17 +18,16 @@ const Dashboard: React.FC<Props> = ({ result, respondentData }) => {
     fullMark: 100,
   }));
 
-  // Helper colors
   const getScoreColor = (score: number) => {
-    if (score < 40) return '#ef4444'; // Red
-    if (score < 80) return '#eab308'; // Yellow
-    return '#10b981'; // Green
+    if (score < 40) return '#dc2626'; // Red-600
+    if (score < 80) return '#d97706'; // Amber-600
+    return '#059669'; // Emerald-600
   };
 
   const getScoreLabel = (score: number) => {
-    if (score < 40) return 'Crítico - Ação Urgente';
-    if (score < 80) return 'Em Desenvolvimento - Atenção';
-    return 'Excelente - Resultado Positivo';
+    if (score < 40) return 'CRÍTICO';
+    if (score < 80) return 'EM DESENVOLVIMENTO';
+    return 'EXCELENTE';
   };
 
   const groupedActions = useMemo(() => {
@@ -56,20 +55,10 @@ const Dashboard: React.FC<Props> = ({ result, respondentData }) => {
   ];
 
   return (
-    <div className="space-y-8 md:space-y-12 animate-fade-in pb-20 print:space-y-8 print:pb-0 bg-white sm:bg-transparent">
+    <div className="animate-fade-in pb-20 print:pb-0 bg-white sm:bg-transparent">
       
-      {/* Print-only Header / Cover Page Elements */}
-      <div className="hidden print:block mb-12 border-b-2 border-emerald-600 pb-4">
-          <h1 className="text-4xl font-black text-slate-900">Relatório Diagnóstico ESG</h1>
-          <p className="text-xl text-slate-500 mt-2">Plano de Ação e Análise de Maturidade</p>
-          <div className="mt-4 flex justify-between text-sm text-slate-400">
-             <span>Gerado automaticamente por Joi.a</span>
-             <span>{new Date().toLocaleDateString('pt-BR')}</span>
-          </div>
-      </div>
-
-      {/* Header with Print Button */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 no-print px-4 md:px-0">
+      {/* HEADER WEB (No Print) */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 no-print px-4 md:px-0 mb-8">
         <div>
           <h1 className="text-2xl md:text-3xl font-black text-slate-900">Dashboard Estratégico</h1>
           <p className="text-slate-500 mt-1 text-sm md:text-base">Visão integrada de meio ambiente e governança.</p>
@@ -78,161 +67,194 @@ const Dashboard: React.FC<Props> = ({ result, respondentData }) => {
             onClick={() => window.print()} 
             className="w-full md:w-auto flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg font-bold transition-colors shadow-lg hover:shadow-xl"
         >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-            </svg>
-            Baixar PDF / Imprimir
+            Imprimir Briefing
         </button>
       </div>
 
-      {/* Respondent Info Card */}
-      <div className="mx-4 md:mx-0 bg-white p-4 md:p-6 rounded-2xl border border-slate-200 shadow-sm print:border-2 print:border-slate-800 print:shadow-none print:rounded-lg">
-        <div className="flex flex-col md:flex-row flex-wrap gap-4 md:gap-8 text-sm md:text-base md:items-center">
-            <div className="flex-1">
-                <span className="block text-xs uppercase font-bold text-slate-400 mb-1">Responsável</span>
-                <span className="font-bold text-slate-900 text-base md:text-lg break-words">{respondentData?.name || '-'}</span>
+      {/* --- PRINT LAYOUT START --- */}
+      <div className="print:block">
+        
+        {/* 1. EXECUTIVE HEADER */}
+        <div className="hidden print:flex justify-between items-end border-b-4 border-slate-900 pb-4 mb-6">
+            <div>
+                <h1 className="print-title-main">Diagnóstico ESG Municipal</h1>
+                <p className="print-subtitle mt-2 text-slate-500">Relatório Executivo de Inteligência & Estratégia</p>
             </div>
-            <div className="flex-1">
-                <span className="block text-xs uppercase font-bold text-slate-400 mb-1">Setor</span>
-                <span className="font-bold text-slate-900 text-base md:text-lg break-words">{respondentData?.sector || '-'}</span>
-            </div>
-            <div className="print:hidden hidden md:block">
-                <span className="block text-xs uppercase font-bold text-slate-400 mb-1">Data</span>
-                <span className="font-bold text-slate-900">{new Date().toLocaleDateString('pt-BR')}</span>
-            </div>
-            <div className="md:ml-auto w-full md:w-auto mt-2 md:mt-0">
-                <span className="block text-xs uppercase font-bold text-slate-400 mb-1 md:text-right">Status Geral</span>
-                <div className={`px-4 py-2 rounded-full text-sm font-black uppercase border text-center md:text-left
-                    ${result.percentage < 40 ? 'bg-red-50 text-red-700 border-red-200' : 
-                      result.percentage < 80 ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 
-                      'bg-emerald-50 text-emerald-700 border-emerald-200'}
-                `}>
-                    {getScoreLabel(result.percentage)}
-                </div>
+            <div className="text-right">
+                <div className="print-caption font-bold uppercase tracking-widest mb-1">Mogi das Cruzes</div>
+                <div className="print-caption">{new Date().toLocaleDateString('pt-BR')}</div>
             </div>
         </div>
-      </div>
 
-      {/* Critical Vision Section - Stack on mobile, grid on desktop */}
-      <div className="mx-4 md:mx-0 grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 print:grid-cols-2 print:gap-4 print:break-inside-avoid">
-        {/* Gauge Chart */}
-        <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center justify-center text-center relative overflow-hidden print:border print:p-4 print:border-slate-300 min-h-[300px]">
-            <h3 className="text-lg font-bold text-slate-800 mb-4 z-10">Índice de Maturidade</h3>
-            <div className="relative w-full max-w-[250px] aspect-square z-10 print:w-48 print:h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                        <Pie
-                            data={gaugeData}
-                            cx="50%"
-                            cy="50%"
-                            startAngle={180}
-                            endAngle={0}
-                            innerRadius="60%"
-                            outerRadius="80%"
-                            paddingAngle={5}
-                            dataKey="value"
-                            stroke="none"
-                        >
-                            <Cell fill={getScoreColor(result.percentage)} />
-                            <Cell fill="#f1f5f9" />
-                        </Pie>
-                    </PieChart>
-                </ResponsiveContainer>
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-0 text-center mt-[-10%]">
-                    <span className="text-4xl md:text-5xl font-black text-slate-900 block print:text-4xl" style={{ color: getScoreColor(result.percentage) }}>
-                        {result.percentage.toFixed(0)}%
-                    </span>
-                    <span className="text-[10px] md:text-xs font-bold text-slate-400 uppercase mt-1 block">Performance</span>
-                </div>
-            </div>
+        {/* 2. EXECUTIVE SUMMARY GRID (2 Columns) */}
+        <div className="print-grid-exec mb-8">
             
-            <div className="w-full mt-4 flex justify-between text-xs font-bold text-slate-400 px-4 print:hidden">
-                <span>0%</span>
-                <span>100%</span>
+            {/* LEFT COLUMN: KPI & INFO */}
+            <div className="flex flex-col gap-4">
+                {/* Respondent Card */}
+                <div className="print-border p-4 bg-slate-50">
+                     <h3 className="print-subtitle uppercase tracking-wider text-slate-400 mb-2 border-b border-slate-200 pb-1">Responsável Técnico</h3>
+                     <div className="flex justify-between items-baseline">
+                        <div>
+                            <div className="print-subtitle font-bold text-slate-900">{respondentData?.name || '-'}</div>
+                            <div className="print-text text-slate-600">{respondentData?.sector || '-'}</div>
+                        </div>
+                        <div className="text-right">
+                             <span className="print-caption block">ID Protocolo</span>
+                             <span className="font-mono text-xs text-slate-400">#{Math.floor(Math.random() * 10000)}</span>
+                        </div>
+                     </div>
+                </div>
+
+                {/* Main KPI Card */}
+                <div className="print-border p-4 flex items-center justify-between">
+                    <div>
+                        <h3 className="print-subtitle uppercase tracking-wider text-slate-400 mb-1">Índice de Maturidade</h3>
+                        <div className="text-4xl font-serif font-black" style={{ color: getScoreColor(result.percentage) }}>
+                            {result.percentage.toFixed(0)}%
+                        </div>
+                        <div className="print-caption font-bold mt-1 uppercase text-slate-500">
+                             {getScoreLabel(result.percentage)}
+                        </div>
+                    </div>
+                    {/* Gauge Chart (Small) */}
+                    <div className="w-24 h-24 relative">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={gaugeData} cx="50%" cy="50%"
+                                    startAngle={180} endAngle={0}
+                                    innerRadius="60%" outerRadius="90%"
+                                    paddingAngle={0} dataKey="value" stroke="none"
+                                >
+                                    <Cell fill={getScoreColor(result.percentage)} />
+                                    <Cell fill="#e2e8f0" />
+                                </Pie>
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
             </div>
-            <div className="absolute bottom-0 left-0 w-full h-2 bg-gradient-to-r from-red-500 via-yellow-400 to-emerald-500 opacity-20 print:opacity-10"></div>
+
+            {/* RIGHT COLUMN: RADAR CHART */}
+            <div className="print-border p-4 h-full">
+                <h3 className="print-subtitle uppercase tracking-wider text-slate-400 mb-2 border-b border-slate-200 pb-1">Raio-X Temático</h3>
+                <div className="h-[200px] w-full mt-2">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <RadarChart cx="50%" cy="50%" outerRadius="70%" data={chartData}>
+                            <PolarGrid stroke="#e2e8f0" strokeWidth={0.5} />
+                            <PolarAngleAxis dataKey="subject" tick={{ fontSize: 9, fontWeight: 700, fill: '#475569' }} />
+                            <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                            <Radar name="Pontuação" dataKey="A" stroke={getScoreColor(result.percentage)} strokeWidth={2} fill={getScoreColor(result.percentage)} fillOpacity={0.2} />
+                        </RadarChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
         </div>
 
-        {/* Radar Chart */}
-        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200 lg:col-span-2 print:col-span-1 print:border print:border-slate-300 min-h-[350px]">
-            <h3 className="text-lg font-bold text-slate-800 mb-4 text-center md:text-left">Raio-X dos Eixos Temáticos</h3>
-            <div className="h-[300px] w-full print:h-[250px]">
-                <ResponsiveContainer width="100%" height="100%">
+        {/* 3. STRATEGIC ACTION PLAN (Grid 3 Columns) */}
+        <div>
+            <h2 className="print-title-section">Plano de Ação Estratégico</h2>
+            
+            <div className="print-grid-3">
+                {(['1 Mês', '3 Meses', '6 Meses', '1 Ano', '5 Anos'] as TimeFrame[]).map((timeframe) => {
+                    const timeActions = groupedActions[timeframe];
+                    if (timeActions.length === 0) return null;
+
+                    const borderColor = timeframe.includes('Mês') ? 'border-l-4 border-l-red-500' : 
+                                        timeframe.includes('Ano') && !timeframe.includes('5') ? 'border-l-4 border-l-amber-500' : 
+                                        'border-l-4 border-l-emerald-500';
+
+                    return (
+                        <div key={timeframe} className={`print-border p-3 print-break-inside-avoid ${borderColor} mb-2`}>
+                            {/* Header */}
+                            <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-2">
+                                <h3 className="print-subtitle uppercase font-bold text-slate-800">{timeframe}</h3>
+                                <span className="print-caption bg-slate-100 px-1 rounded">
+                                    {timeframe.includes('Mês') ? 'Tático' : 'Estratégico'}
+                                </span>
+                            </div>
+                            
+                            {/* Actions List */}
+                            <div className="space-y-3">
+                                {timeActions.map((action, idx) => (
+                                    <div key={idx} className="relative pl-0">
+                                        <div className="flex justify-between items-start">
+                                            <span className="text-[7pt] font-black uppercase text-slate-400 tracking-wider mb-0.5 block">
+                                                {action.category}
+                                            </span>
+                                            {action.priority === 'Alta' && <span className="text-[6pt] bg-black text-white px-1 font-bold">ALTA</span>}
+                                        </div>
+                                        <h4 className="print-subtitle text-[9pt] leading-tight mb-1 text-slate-900 font-bold">
+                                            {action.title}
+                                        </h4>
+                                        <p className="print-text text-[8pt] text-slate-600 leading-snug">
+                                            {action.description}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+
+        {/* Footer info */}
+        <div className="hidden print:block border-t border-slate-200 mt-6 pt-2 text-center">
+             <span className="print-caption">Documento gerado automaticamente pelo Sistema ESG Municipal. Confidencial.</span>
+        </div>
+
+      </div>
+      {/* --- PRINT LAYOUT END --- */}
+
+
+      {/* --- WEB LAYOUT (Simplified Fallback for non-print) --- */}
+      <div className="mx-4 md:mx-0 no-print block">
+        {/* Web content logic remains similar but hidden during print via CSS */}
+         <div className="bg-yellow-50 p-4 rounded border border-yellow-200 text-yellow-800 text-sm mb-4">
+            ⚠️ Modo de visualização Web. Para ver o layout executivo, clique em "Imprimir Briefing".
+         </div>
+         {/* Reuse the print layout structure but styled for web roughly */}
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div className="bg-white p-6 rounded shadow-sm border">
+                <h3 className="font-bold text-lg mb-2">Índice Geral</h3>
+                <div className="text-5xl font-black text-slate-800 mb-2">{result.percentage.toFixed(0)}%</div>
+                <div className="text-sm text-slate-500 uppercase font-bold">{getScoreLabel(result.percentage)}</div>
+            </div>
+            <div className="bg-white p-6 rounded shadow-sm border h-[300px]">
+                 <ResponsiveContainer width="100%" height="100%">
                     <RadarChart cx="50%" cy="50%" outerRadius="70%" data={chartData}>
-                    <PolarGrid stroke="#e2e8f0" />
-                    <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fontWeight: 600, fill: '#64748b' }} />
-                    <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                    <Radar name="Pontuação" dataKey="A" stroke={getScoreColor(result.percentage)} fill={getScoreColor(result.percentage)} fillOpacity={0.5} />
-                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
+                        <PolarGrid />
+                        <PolarAngleAxis dataKey="subject" />
+                        <PolarRadiusAxis angle={30} domain={[0, 100]} />
+                        <Radar dataKey="A" stroke="#059669" fill="#059669" fillOpacity={0.6} />
                     </RadarChart>
                 </ResponsiveContainer>
             </div>
-        </div>
-      </div>
-
-      {/* Action Plans by Timeline */}
-      <div className="space-y-6 md:space-y-8 print:space-y-6 mx-4 md:mx-0">
-        <div className="flex items-center gap-3 mb-6 print:break-before-page print:mt-8">
-            <div className="h-8 w-2 md:h-10 bg-slate-900 rounded-full"></div>
-            <h2 className="text-xl md:text-2xl font-black text-slate-900">Plano de Ação Cronológico</h2>
-        </div>
-
-        {(['1 Mês', '3 Meses', '6 Meses', '1 Ano', '5 Anos'] as TimeFrame[]).map((timeframe) => {
-            const timeActions = groupedActions[timeframe];
-            if (timeActions.length === 0) return null;
-
-            return (
-                <div key={timeframe} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print:border print:border-slate-300 print:shadow-none mb-6 print:break-inside-avoid">
-                    <div className={`px-4 md:px-6 py-4 border-b flex flex-col md:flex-row md:items-center justify-between gap-2
-                        ${timeframe.includes('Mês') ? 'bg-red-50 border-red-100 print:bg-slate-100 print:text-black' : 
-                          timeframe.includes('Ano') && !timeframe.includes('5') ? 'bg-yellow-50 border-yellow-100 print:bg-slate-50' : 
-                          'bg-emerald-50 border-emerald-100 print:bg-slate-50'}
-                    `}>
-                        <h3 className={`font-bold text-base md:text-lg flex items-center gap-2
-                             ${timeframe.includes('Mês') ? 'text-red-800' : 
-                               timeframe.includes('Ano') && !timeframe.includes('5') ? 'text-yellow-800' : 
-                               'text-emerald-800'}
-                             print:text-slate-900
-                        `}>
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            {timeframe}
-                        </h3>
-                        <span className="text-[10px] md:text-xs font-bold uppercase opacity-60">
-                            {timeframe.includes('Mês') ? 'Ações Imediatas & Urgentes' : timeframe === '5 Anos' ? 'Visão de Futuro' : 'Estruturação'}
-                        </span>
-                    </div>
-                    <div className="divide-y divide-slate-100 print:divide-slate-200">
-                        {timeActions.map((action, idx) => (
-                            <div key={idx} className="p-4 md:p-6 hover:bg-slate-50 transition-colors print:p-4">
-                                <div className="flex flex-col md:flex-row justify-between mb-2 gap-2">
-                                    <span className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded w-fit border border-slate-200">{action.category}</span>
-                                    {action.priority === 'Alta' && <span className="text-[10px] md:text-xs font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded w-fit border border-red-200">PRIORIDADE MÁXIMA</span>}
+         </div>
+         {/* Web Timeline */}
+         <div className="space-y-6">
+            {Object.entries(groupedActions).map(([tf, acts]) => {
+                const actionItems = acts as ActionPlanItem[];
+                return (
+                actionItems.length > 0 && (
+                    <div key={tf} className="bg-white p-6 rounded border shadow-sm">
+                        <h3 className="font-bold text-lg mb-4 border-b pb-2">{tf}</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {actionItems.map((a, i) => (
+                                <div key={i} className="bg-slate-50 p-3 rounded">
+                                    <div className="font-bold text-sm text-slate-900">{a.title}</div>
+                                    <div className="text-xs text-slate-600 mt-1">{a.description}</div>
                                 </div>
-                                <h4 className="text-base md:text-lg font-bold text-slate-900 mb-2">{action.title}</h4>
-                                <p className="text-slate-600 text-sm mb-4 leading-relaxed text-justify">{action.description}</p>
-                                <div className="flex flex-wrap gap-2 md:gap-4 text-xs font-medium text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100 print:bg-white print:border-slate-200">
-                                    <div className="flex items-center gap-1">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                                        Resp: {action.responsible}
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                                        Impacto: {action.impact}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
                     </div>
-                </div>
-            );
-        })}
+                )
+            )})}
+         </div>
       </div>
-      
-      <div className="hidden print:block text-center text-xs text-slate-400 pt-8 mt-12 border-t border-slate-200">
-         Relatório gerado pelo Sistema ESG Municipal - Joi.a
-      </div>
+
     </div>
   );
 };
