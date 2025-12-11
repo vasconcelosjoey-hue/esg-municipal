@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { getSubmissions, generateFullActionPlan, deleteSubmission, clearAllSubmissions } from '../utils';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, PieChart, Pie, Legend } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, PieChart, Pie, Legend, Tooltip } from 'recharts';
 import { CATEGORIES } from '../constants';
 import { Submission, TimeFrame, ActionPlanItem, AssessmentResult } from '../types';
 import Dashboard from './Dashboard';
@@ -98,6 +98,17 @@ const AdminDashboard: React.FC = () => {
     return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
   }, [submissions]);
 
+  const getActionIcon = (title: string) => {
+      const lower = title.toLowerCase();
+      if (lower.includes('diagnóstico') || lower.includes('análise')) return '🔍';
+      if (lower.includes('lei') || lower.includes('jurídico') || lower.includes('decreto')) return '⚖️';
+      if (lower.includes('obra') || lower.includes('construção')) return '🏗️';
+      if (lower.includes('educação') || lower.includes('capacitação')) return '🎓';
+      if (lower.includes('tecnologia') || lower.includes('digital') || lower.includes('sistema')) return '💻';
+      if (lower.includes('financeiro') || lower.includes('recurso')) return '💰';
+      return '⚡';
+  };
+
   if (loading) return <div className="p-10 text-center">Carregando...</div>;
   if (selectedSubmission) return <div className="animate-fade-in"><button onClick={() => setSelectedSubmission(null)} className="no-print mb-4 px-4 py-2 border rounded">Voltar</button><Dashboard result={selectedSubmission.result} respondentData={selectedSubmission.respondent} /></div>;
   if (submissions.length === 0) return <div className="p-10 text-center">Sem dados. <button onClick={handleRefresh}>Atualizar</button></div>;
@@ -114,160 +125,171 @@ const AdminDashboard: React.FC = () => {
          </div>
       </div>
 
-      {/* --- PRINT LAYOUT (COMPACT 2 PAGES) --- */}
+      {/* --- PREMIUM PRINT LAYOUT --- */}
       <div className="print:block">
           
-          {/* 1. HEADER INTEGRADO (Substitui capa full page) */}
-          <div className="hidden print:flex print-header-container">
-              <div>
-                  <div className="print-small font-bold uppercase tracking-widest text-slate-500">Relatório Oficial ESG</div>
-                  <h1 className="print-h1">Diagnóstico Municipal<br/>Consolidado</h1>
+          {/* COVER PAGE */}
+          <div className="hidden print:flex animus-cover">
+              <div className="animus-cover-decor-top"></div>
+              
+              <div className="animus-cover-content pt-10">
+                  <div className="flex items-center gap-4 mb-8">
+                      {/* Logo Placeholder */}
+                      <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-indigo-900 font-bold text-xl">E</div>
+                      <span className="text-sm tracking-[0.2em] font-bold uppercase opacity-70">ESG Municipal</span>
+                  </div>
+                  <h1 className="animus-title">Relatório de<br/>Inteligência<br/>Estratégica</h1>
               </div>
-              <div className="text-right">
-                  <div className="print-bold text-[12px]">Prefeitura Municipal de Mogi das Cruzes</div>
-                  <div className="print-small">{new Date().toLocaleDateString('pt-BR')} | Sistema Joi.a</div>
-              </div>
-          </div>
 
-          {/* 2. SUMÁRIO & KPIs (Grid Compacto) */}
-          <div className="print-grid-4">
-              <div className="print-card bg-slate-50">
-                  <div className="print-small font-bold uppercase">Total Diag.</div>
-                  <div className="text-xl font-black text-[#001f3f]">{submissions.length}</div>
-              </div>
-              <div className="print-card bg-slate-50">
-                  <div className="print-small font-bold uppercase">Maturidade</div>
-                  <div className="text-xl font-black text-[#001f3f]">{aggregateResult?.percentage.toFixed(0)}%</div>
-              </div>
-              <div className="print-card bg-slate-50 col-span-2">
-                  <div className="print-small font-bold uppercase">Destaque Engajamento</div>
-                  <div className="text-sm font-bold truncate">{sectorData[0]?.name || '-'}</div>
-              </div>
-          </div>
-
-          {/* 3. GRÁFICOS LADO A LADO (Altura Reduzida) */}
-          <div className="print-grid-2">
-              <div className="print-card">
-                  <h3 className="print-h3 text-center mb-1">Distribuição Setorial</h3>
-                  <div className="chart-container">
-                      <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie 
-                                data={sectorData} 
-                                dataKey="value" 
-                                nameKey="name" 
-                                cx="50%" 
-                                cy="50%" 
-                                outerRadius={40} 
-                                fill="#001f3f"
-                                labelLine={false}
-                            />
-                            <Legend layout="vertical" verticalAlign="middle" align="right" wrapperStyle={{fontSize: '7px', width: '40%'}} />
-                          </PieChart>
-                      </ResponsiveContainer>
+              <div className="animus-cover-content">
+                  <div className="animus-subtitle mb-8">
+                      Prefeitura Municipal de<br/>
+                      <strong className="text-white text-2xl">Mogi das Cruzes</strong>
+                  </div>
+                  <div className="flex justify-between items-end border-t border-white/20 pt-4">
+                      <div className="text-xs opacity-60">
+                          Versão 2.0 • Confidencial<br/>
+                          Gerado em {new Date().toLocaleDateString('pt-BR')}
+                      </div>
+                      <div className="text-right">
+                          <span className="block text-3xl font-bold">{aggregateResult?.percentage.toFixed(0)}%</span>
+                          <span className="text-xs uppercase tracking-wider opacity-80">Score Global</span>
+                      </div>
                   </div>
               </div>
-              <div className="print-card">
-                  <h3 className="print-h3 text-center mb-1">Performance por Eixo</h3>
-                  <div className="chart-container">
-                     <ResponsiveContainer width="100%" height="100%">
-                         <BarChart data={Object.entries(aggregateResult?.categoryScores || {}).map(([k,v]) => ({name:k, score:v.percentage}))}>
-                            <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                            <XAxis dataKey="name" tick={{fontSize: 7}} interval={0} tickFormatter={(v) => v.substring(0,3).toUpperCase()} />
-                            <YAxis hide domain={[0,100]} />
-                            <Bar dataKey="score" fill="#001f3f" />
-                        </BarChart>
-                      </ResponsiveContainer>
+              
+              <div className="animus-cover-decor-bottom"></div>
+          </div>
+
+          {/* PAGE 2: TOC & OVERVIEW */}
+          <div className="print-page-content break-page">
+              <h2 className="animus-section-title">Sumário Executivo</h2>
+              <div className="mb-10 px-2">
+                  <div className="animus-toc-item"><span>01. Diagnóstico Geral</span><span className="animus-toc-dots"></span><span>02</span></div>
+                  <div className="animus-toc-item"><span>02. Análise por Eixos</span><span className="animus-toc-dots"></span><span>02</span></div>
+                  <div className="animus-toc-item"><span>03. Plano de Ação (Curto Prazo)</span><span className="animus-toc-dots"></span><span>03</span></div>
+                  <div className="animus-toc-item"><span>04. Plano de Ação (Longo Prazo)</span><span className="animus-toc-dots"></span><span>03</span></div>
+                  <div className="animus-toc-item"><span>05. Conclusões</span><span className="animus-toc-dots"></span><span>04</span></div>
+              </div>
+
+              <h2 className="animus-section-title">1. Diagnóstico Geral</h2>
+              <div className="animus-cols-2">
+                  <p className="animus-text">
+                      O presente relatório consolida os dados de <strong>{submissions.length} diagnósticos setoriais</strong> realizados pela administração municipal. 
+                      O índice global de maturidade ESG atingiu a marca de <strong>{aggregateResult?.percentage.toFixed(0)}%</strong>, classificando a gestão no nível <strong>{aggregateResult?.level}</strong>.
+                  </p>
+                  <p className="animus-text">
+                      Esta pontuação reflete o comprometimento da gestão com práticas sustentáveis, mas aponta para disparidades significativas entre os eixos temáticos.
+                      A seguir, apresentamos a decomposição analítica dos resultados e o plano de ação sugerido.
+                  </p>
+              </div>
+
+              <div className="mt-8 grid grid-cols-2 gap-8">
+                  <div className="bg-slate-50 p-4 rounded border border-slate-200 break-inside-avoid">
+                      <h3 className="font-bold text-slate-700 mb-4 text-center text-xs uppercase tracking-wider">Distribuição por Setor</h3>
+                      <div className="chart-container">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie 
+                                    data={sectorData} 
+                                    dataKey="value" 
+                                    nameKey="name" 
+                                    cx="50%" 
+                                    cy="50%" 
+                                    outerRadius={50} 
+                                    innerRadius={30}
+                                    fill="#6366f1"
+                                    paddingAngle={2}
+                                    labelLine={false}
+                                    label={({cx, cy, midAngle, innerRadius, outerRadius, percent}) => {
+                                        const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                                        const x = cx + radius * Math.cos(-midAngle * Math.PI / 180);
+                                        const y = cy + radius * Math.sin(-midAngle * Math.PI / 180);
+                                        return percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : '';
+                                    }}
+                                >
+                                    {sectorData.map((_, index) => (
+                                        <Cell key={`cell-${index}`} fill={['#1e1b4b', '#4338ca', '#6366f1', '#818cf8', '#94a3b8'][index % 5]} />
+                                    ))}
+                                </Pie>
+                                <Legend layout="vertical" verticalAlign="middle" align="right" wrapperStyle={{fontSize: '8px'}} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                  </div>
+                  
+                  <div className="bg-slate-50 p-4 rounded border border-slate-200 break-inside-avoid">
+                      <h3 className="font-bold text-slate-700 mb-4 text-center text-xs uppercase tracking-wider">Maturidade por Eixo</h3>
+                      <div className="chart-container">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={Object.entries(aggregateResult?.categoryScores || {}).map(([k, v]) => ({
+                                name: CATEGORIES.find(c => c.id === k)?.title.split(' ')[1].substring(0,3).toUpperCase(), 
+                                score: v.percentage
+                            }))}>
+                                <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <XAxis dataKey="name" tick={{fontSize: 8, fill: '#64748b'}} axisLine={false} tickLine={false} />
+                                <YAxis hide domain={[0, 100]} />
+                                <Bar dataKey="score" fill="#6366f1" radius={[2, 2, 0, 0]} barSize={20} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                      </div>
                   </div>
               </div>
           </div>
 
-          {/* 4. ANÁLISE EXECUTIVA (Texto Condensado) */}
-          <div className="mb-4">
-              <h2 className="print-h2">Análise Executiva</h2>
-              <div className="print-text border-l-2 border-[#001f3f] pl-2">
-                  <p className="mb-1">
-                      O índice de <strong>{aggregateResult?.percentage.toFixed(0)}%</strong> classifica a gestão como <strong>{aggregateResult?.level}</strong>. 
-                      Há variações significativas entre eixos, exigindo padronização de processos.
-                  </p>
-                  <p>
-                      <strong>Recomendação:</strong> Priorizar ações de curto prazo (1-3 meses) listadas abaixo para ganhos rápidos de conformidade (Quick Wins) e institucionalizar a governança ESG via decretos.
-                  </p>
-              </div>
-          </div>
-
-          {/* 5. PLANO DE AÇÃO INTEGRADO (Compacto 2 colunas) */}
-          <div className="print-section">
-             <h2 className="print-h2">Plano de Ação Estratégico</h2>
-             <div className="print-grid-2">
+          {/* PAGE 3: ACTION PLAN */}
+          <div className="print-page-content">
+             <h2 className="animus-section-title">2. Plano de Ação Integrado</h2>
+             
+             <div className="animus-grid-actions">
                  {(['1 Mês', '3 Meses', '6 Meses', '1 Ano'] as TimeFrame[]).map(tf => {
                      const actions = groupedAggregateActions[tf] || [];
                      if(actions.length === 0) return null;
                      
                      return (
-                         <div key={tf} className="print-card border-t-2 border-t-[#001f3f]">
-                             <div className="flex justify-between items-center border-b border-dashed border-slate-300 mb-1 pb-1">
-                                <h3 className="print-h3">{tf}</h3>
-                                <span className="print-small font-bold uppercase">
-                                    {tf.includes('Mês') ? 'Curto Prazo' : 'Médio Prazo'}
-                                </span>
-                             </div>
-                             <div>
-                                 {actions.slice(0, 3).map((act, i) => (
-                                     <div key={i} className="print-list-item">
-                                         <div className="print-bold text-[9px] leading-tight">• {act.title}</div>
-                                         <div className="print-text text-[8px] leading-tight text-slate-500 pl-1">{act.description}</div>
+                         <div key={tf} className="animus-action-group">
+                             <div className="animus-action-header">{tf}</div>
+                             {actions.slice(0, 4).map((act, i) => (
+                                 <div key={i} className="animus-action-card">
+                                     <div className="flex items-start gap-2">
+                                         <span className="text-sm pt-0.5">{getActionIcon(act.title)}</span>
+                                         <div>
+                                             <div className="font-bold text-[9pt] text-slate-800 leading-tight">{act.title}</div>
+                                             <div className="text-[8pt] text-slate-500 leading-tight mt-0.5">{act.description}</div>
+                                         </div>
                                      </div>
-                                 ))}
-                                 {actions.length > 3 && <div className="print-small italic text-center">+ {actions.length - 3} itens</div>}
-                             </div>
+                                 </div>
+                             ))}
+                             {actions.length > 4 && (
+                                 <div className="text-[8pt] text-center text-slate-400 italic mt-1">+ {actions.length - 4} ações complementares</div>
+                             )}
                          </div>
                      )
                  })}
              </div>
-          </div>
 
-          {/* 6. LONGO PRAZO E TABELA (Rodapé da pág 2 se possível) */}
-          <div className="print-section">
-             <div className="print-grid-2">
-                <div>
-                     <h2 className="print-h2" style={{marginTop: 0}}>Visão 2030 (5 Anos)</h2>
-                     <div className="print-card">
-                        {groupedAggregateActions['5 Anos']?.slice(0, 3).map((act, i) => (
-                             <div key={i} className="print-list-item">
-                                 <div className="print-bold text-[9px]">→ {act.title}</div>
-                                 <div className="print-text text-[8px] pl-2">{act.description}</div>
+             <div className="mt-6">
+                 <h2 className="animus-section-title">3. Visão de Longo Prazo (5 Anos)</h2>
+                 <div className="animus-action-card bg-slate-50 border-none p-4">
+                     <div className="grid grid-cols-2 gap-4">
+                        {(groupedAggregateActions['5 Anos'] || []).slice(0, 4).map((act, i) => (
+                             <div key={i} className="flex items-start gap-2">
+                                 <span className="text-sm">🚀</span>
+                                 <div>
+                                     <div className="font-bold text-[9pt] text-indigo-900 leading-tight">{act.title}</div>
+                                     <div className="text-[8pt] text-slate-500 leading-tight">{act.description}</div>
+                                 </div>
                              </div>
                         ))}
                      </div>
-                </div>
-                <div>
-                     <h2 className="print-h2" style={{marginTop: 0}}>Últimos Registros</h2>
-                     <table className="w-full text-left border-collapse text-[8px]">
-                          <thead>
-                              <tr className="border-b border-slate-400">
-                                  <th className="py-0.5 font-bold">Setor</th>
-                                  <th className="py-0.5 font-bold text-right">Score</th>
-                              </tr>
-                          </thead>
-                          <tbody>
-                              {submissions.slice(0, 5).map(sub => (
-                                  <tr key={sub.id} className="border-b border-slate-100">
-                                      <td className="py-0.5 truncate max-w-[100px]">{sub.respondent.sector}</td>
-                                      <td className="py-0.5 text-right font-bold">{sub.result.percentage.toFixed(0)}%</td>
-                                  </tr>
-                              ))}
-                          </tbody>
-                      </table>
-                </div>
+                 </div>
              </div>
           </div>
 
           <div className="print-footer">
-              <span>Relatório ESG Municipal - Gerado Automaticamente</span>
-              <span>Página 1-2</span>
+              <span className="font-bold uppercase tracking-widest text-[7pt]">Relatório ESG Municipal</span>
+              <span className="text-[7pt]">Confidencial • Uso Interno</span>
           </div>
-
       </div>
     </div>
   );

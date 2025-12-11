@@ -65,73 +65,77 @@ const Dashboard: React.FC<Props> = ({ result, respondentData }) => {
         </button>
       </div>
 
-      {/* --- PRINT LAYOUT (Individual Compact) --- */}
+      {/* --- PREMIUM PRINT LAYOUT (Individual) --- */}
       <div className="print:block">
         
-        {/* HEADER COMPACTO */}
-        <div className="hidden print:flex print-header-container">
-            <div>
-                <h1 className="print-h1">Diagnóstico Individual</h1>
-                <p className="print-small text-slate-600">{respondentData?.name} | {respondentData?.sector}</p>
+        {/* COVER PAGE (Simpler for Individual) */}
+        <div className="hidden print:flex animus-cover" style={{height: '297mm', padding: '20mm'}}>
+            <div className="animus-cover-decor-top" style={{background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(0,0,0,0) 70%)'}}></div>
+            
+            <div className="animus-cover-content pt-20">
+                <h1 className="animus-title" style={{fontSize: '32pt'}}>Diagnóstico<br/>Individual</h1>
+                <p className="text-white opacity-80 mt-2 text-xl font-light">{respondentData?.name}</p>
             </div>
-            <div className="text-right print-small">
-                {new Date().toLocaleDateString('pt-BR')}
+
+            <div className="animus-cover-content">
+                <div className="border-l-4 border-indigo-400 pl-4 mb-10">
+                    <div className="uppercase tracking-widest text-sm opacity-70">Setor Avaliado</div>
+                    <div className="text-3xl font-bold">{respondentData?.sector}</div>
+                </div>
+                <div className="flex justify-between items-end border-t border-white/20 pt-4">
+                     <div className="text-sm">Resultado Preliminar</div>
+                     <div className="text-4xl font-bold">{result.percentage.toFixed(0)}%</div>
+                </div>
             </div>
         </div>
 
-        {/* METRICS & CHARTS */}
-        <div className="print-grid-2">
+        {/* PAGE 2: ANALYSIS */}
+        <div className="print-page-content">
+            <h2 className="animus-section-title">Análise de Performance</h2>
             
-            {/* Left: Key Metrics */}
-            <div className="print-card bg-slate-50 flex flex-col justify-center items-center">
-                <h3 className="print-h3 text-slate-500 mb-1">Score do Setor</h3>
-                <div className="text-[32px] font-black tracking-tighter leading-none mb-1" style={{ color: getScoreColor(result.percentage) }}>
-                    {result.percentage.toFixed(0)}%
+            <div className="animus-grid-actions mb-8">
+                <div className="bg-slate-50 p-6 rounded border border-slate-200 flex flex-col items-center justify-center">
+                    <div className="text-sm uppercase font-bold text-slate-500 mb-2">Score Geral</div>
+                    <div className="text-5xl font-black text-slate-900 mb-2">{result.percentage.toFixed(0)}%</div>
+                    <div className="px-3 py-1 bg-white border rounded text-xs uppercase font-bold text-slate-600">
+                        {result.percentage < 40 ? 'Crítico' : result.percentage < 80 ? 'Em Desenv.' : 'Excelente'}
+                    </div>
                 </div>
-                <div className="print-small font-bold uppercase border border-slate-300 px-2 rounded bg-white">
-                    {result.percentage < 40 ? 'Crítico' : result.percentage < 80 ? 'Em Desenv.' : 'Excelente'}
+                <div className="bg-slate-50 p-2 rounded border border-slate-200">
+                     <div className="chart-container" style={{height: '160px'}}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <RadarChart cx="50%" cy="50%" outerRadius="65%" data={chartData}>
+                                <PolarGrid stroke="#e2e8f0" strokeWidth={1} />
+                                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 7, fontWeight: 700, fill: '#64748b' }} />
+                                <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                                <Radar name="Pontuação" dataKey="A" stroke="#6366f1" strokeWidth={2} fill="#6366f1" fillOpacity={0.3} />
+                            </RadarChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
             </div>
 
-            {/* Right: Radar Analysis */}
-            <div className="chart-container">
-                <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart cx="50%" cy="50%" outerRadius="65%" data={chartData}>
-                        <PolarGrid stroke="#e2e8f0" strokeWidth={1} />
-                        <PolarAngleAxis dataKey="subject" tick={{ fontSize: 7, fontWeight: 700, fill: '#64748b' }} />
-                        <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                        <Radar name="Pontuação" dataKey="A" stroke={getScoreColor(result.percentage)} strokeWidth={2} fill={getScoreColor(result.percentage)} fillOpacity={0.25} />
-                    </RadarChart>
-                </ResponsiveContainer>
-            </div>
-        </div>
-
-        {/* ACTION PLAN */}
-        <div>
-            <h2 className="print-h2 mt-2">Plano de Ação Sugerido</h2>
-            
-            <div className="print-grid-2">
+            <h2 className="animus-section-title">Plano de Ação Sugerido</h2>
+            <div className="animus-grid-actions">
                 {(['1 Mês', '3 Meses', '6 Meses', '1 Ano'] as TimeFrame[]).map((timeframe) => {
                     const timeActions = groupedActions[timeframe];
                     if (timeActions.length === 0) return null;
 
                     return (
-                        <div key={timeframe} className="print-card">
-                            <h3 className="print-h3 border-b border-slate-200 mb-1">{timeframe}</h3>
-                            <div>
-                                {timeActions.slice(0, 3).map((action, idx) => (
-                                    <div key={idx} className="print-list-item">
-                                        <div className="print-bold text-[9px] leading-tight">• {action.title}</div>
-                                        <div className="print-text text-[8px] leading-tight pl-1">{action.description}</div>
-                                    </div>
-                                ))}
-                            </div>
+                        <div key={timeframe} className="animus-action-group">
+                            <div className="animus-action-header">{timeframe}</div>
+                            {timeActions.slice(0, 3).map((action, idx) => (
+                                <div key={idx} className="animus-action-card">
+                                    <div className="font-bold text-[9pt] text-slate-900 leading-tight">• {action.title}</div>
+                                    <div className="text-[8pt] text-slate-500 leading-tight pl-2 mt-0.5">{action.description}</div>
+                                </div>
+                            ))}
                         </div>
                     );
                 })}
             </div>
         </div>
-        
+
         <div className="print-footer">
             <span>Diagnóstico Individual - Joi.a</span>
             <span>Confidencial</span>
