@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { getSubmissions, generateFullActionPlan, deleteSubmission, clearAllSubmissions, fetchSubmissionDetails } from '../utils';
+import { fetchAllSubmissions, generateFullActionPlan, fetchSubmissionDetails } from '../utils';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, PieChart, Pie, Legend, Tooltip, AreaChart, Area } from 'recharts';
 import { CATEGORIES } from '../constants';
 import { Submission, TimeFrame, ActionPlanItem, AssessmentResult, Evidence, EvidencesState } from '../types';
@@ -13,13 +13,17 @@ const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // Use fetchAllSubmissions instead of getSubmissions to ensure joined data
   useEffect(() => {
     let mounted = true;
     const fetchData = async () => {
       setLoading(true);
       try {
-        const data = await getSubmissions();
+        // 1. Busca lista completa já formatada como array
+        const data = await fetchAllSubmissions();
+        
         if (mounted) {
+          // 2. Atribuição direta (O utilitário já retorna Submission[])
           setSubmissions(data);
           setLoading(false);
         }
@@ -44,7 +48,7 @@ const AdminDashboard: React.FC = () => {
           const details = await fetchSubmissionDetails(sub.id);
 
           if (!details) {
-              // Safety: Clear state if not found
+              // Safety: Clear state if not found (deleted remotely etc)
               setSelectedSubmission(null);
               setDetailedEvidences({});
               return;
@@ -56,7 +60,7 @@ const AdminDashboard: React.FC = () => {
               id: sub.id,
               timestamp: sub.timestamp,
               respondent: details.respondent,
-              result: details.result,
+              result: details.result, // Use result from details (recalculated if needed)
               answers: details.answers ?? {}
           };
 
@@ -74,19 +78,25 @@ const AdminDashboard: React.FC = () => {
   const aggregateResult: AssessmentResult | null = useMemo(() => {
     if (submissions.length === 0) return null;
     const categorySums: Record<string, number> = {};
+    let validSubmissionsCount = 0;
+
     submissions.forEach(sub => {
+        if (!sub.result || !sub.result.categoryScores) return;
+        validSubmissionsCount++;
         Object.entries(sub.result.categoryScores).forEach(([catId, scoreData]) => {
             const data = scoreData as { percentage: number };
             categorySums[catId] = (categorySums[catId] || 0) + data.percentage;
         });
     });
 
+    if (validSubmissionsCount === 0) return null;
+
     const categoryAverages: Record<string, { score: number; max: number; percentage: number }> = {};
     let totalAvgScore = 0;
     let totalAvgMax = 0;
 
     CATEGORIES.forEach(cat => {
-        const avgPct = (categorySums[cat.id] || 0) / submissions.length;
+        const avgPct = (categorySums[cat.id] || 0) / validSubmissionsCount;
         const max = cat.questions.length; 
         const score = (avgPct / 100) * max;
         categoryAverages[cat.id] = { score, max, percentage: avgPct };
@@ -113,7 +123,7 @@ const AdminDashboard: React.FC = () => {
   const sectorData = useMemo(() => {
     const counts: Record<string, number> = {};
     submissions.forEach(s => {
-      const sector = s.respondent.sector.trim() || 'N/A';
+      const sector = s.respondent.sector.trim() || 'Não informado';
       counts[sector] = (counts[sector] || 0) + 1;
     });
     return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
@@ -130,26 +140,29 @@ const AdminDashboard: React.FC = () => {
       return '⚡';
   };
 
-  if (loading) return <div className="p-10 text-center">Carregando...</div>;
+  if (loading) return <div className="p-10 text-center flex flex-col items-center justify-center h-64"><div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div><span className="text-slate-500 font-bold">Carregando dados da nuvem...</span></div>;
   
   // --- DETAIL VIEW ---
   if (selectedSubmission) {
       return (
         <div className="animate-fade-in">
              <div className="mb-6 flex items-center justify-between no-print px-4 md:px-0">
-                <button onClick={() => setSelectedSubmission(null)} className="flex items-center gap-2 text-slate-600 hover:text-slate-900 font-bold px-4 py-2 rounded-lg bg-white border border-slate-200">
-                    ← Voltar
+                <button onClick={() => setSelectedSubmission(null)} className="flex items-center gap-2 text-slate-600 hover:text-slate-900 font-bold px-4 py-2 rounded-lg bg-white border border-slate-200 shadow-sm hover:shadow">
+                    ← Voltar ao Painel
                 </button>
              </div>
              
              {/* Evidence Section for Admin - Fetched from DetailedEvidences */}
              {Object.keys(detailedEvidences).length > 0 ? (
                  <div className="no-print mx-4 md:mx-0 mb-8 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                     <h3 className="font-bold text-lg mb-4 text-slate-800">📂 Evidências e Comentários</h3>
+                     <h3 className="font-bold text-lg mb-4 text-slate-800 flex items-center gap-2">
+                        <span className="bg-emerald-100 text-emerald-700 p-1.5 rounded-lg">📂</span>
+                        Evidências e Comentários
+                     </h3>
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                          {Object.values(detailedEvidences)
                              .map((ev: Evidence, idx) => (
-                                 <div key={idx} className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col">
+                                 <div key={idx} className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col hover:border-emerald-200 transition-colors">
                                      <div className="flex justify-between items-start mb-3">
                                         <span className="text-[10px] font-black uppercase text-white bg-slate-400 px-2 py-0.5 rounded">ID: {ev.questionId}</span>
                                         <span className="text-[10px] text-slate-400">{new Date(ev.timestamp).toLocaleDateString('pt-BR')}</span>
@@ -161,8 +174,9 @@ const AdminDashboard: React.FC = () => {
                      </div>
                  </div>
              ) : (
-                 <div className="no-print mx-4 md:mx-0 mb-8 bg-slate-50 p-6 rounded-2xl border border-slate-200 border-dashed text-center text-slate-400 text-sm font-bold">
-                     Nenhuma evidência ou comentário anexado.
+                 <div className="no-print mx-4 md:mx-0 mb-8 bg-slate-50 p-6 rounded-2xl border border-slate-200 border-dashed text-center flex flex-col items-center justify-center">
+                     <span className="text-4xl mb-2 opacity-30">📭</span>
+                     <span className="text-slate-400 text-sm font-bold">Nenhuma evidência ou comentário anexado a este diagnóstico.</span>
                  </div>
              )}
 
@@ -171,7 +185,14 @@ const AdminDashboard: React.FC = () => {
       );
   }
 
-  if (submissions.length === 0) return <div className="p-10 text-center">Sem dados. <button onClick={handleRefresh}>Atualizar</button></div>;
+  if (submissions.length === 0) return (
+      <div className="p-20 text-center flex flex-col items-center justify-center bg-white rounded-3xl mx-4 my-8 shadow-sm border border-slate-200">
+          <div className="text-6xl mb-4 opacity-50">📂</div>
+          <h3 className="text-xl font-bold text-slate-800">Sem dados disponíveis</h3>
+          <p className="text-slate-500 mb-6">Nenhum diagnóstico foi sincronizado com a nuvem ainda.</p>
+          <button onClick={handleRefresh} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors">Atualizar Agora</button>
+      </div>
+  );
 
   // ... (Rest of dashboard remains same)
   return (
@@ -184,7 +205,10 @@ const AdminDashboard: React.FC = () => {
              <p className="text-slate-500 text-sm">Visão consolidada de {submissions.length} diagnósticos</p>
          </div>
          <div className="flex gap-3">
-            <button onClick={handleRefresh} className="px-5 py-2.5 bg-slate-50 hover:bg-slate-100 rounded-xl font-bold text-slate-600 transition-colors border border-slate-200">Atualizar</button>
+            <button onClick={handleRefresh} className="px-5 py-2.5 bg-slate-50 hover:bg-slate-100 rounded-xl font-bold text-slate-600 transition-colors border border-slate-200 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                Atualizar
+            </button>
             <button onClick={() => window.print()} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg hover:shadow-indigo-200 transition-all flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                 Gerar Relatório PDF
@@ -328,6 +352,7 @@ const AdminDashboard: React.FC = () => {
                          <th className="px-6 py-4 md:px-10 md:py-5 text-left text-xs md:text-sm font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Respondente</th>
                          <th className="px-6 py-4 md:px-10 md:py-5 text-left text-xs md:text-sm font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Setor</th>
                          <th className="px-6 py-4 md:px-10 md:py-5 text-left text-xs md:text-sm font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Data</th>
+                         <th className="px-6 py-4 md:px-10 md:py-5 text-left text-xs md:text-sm font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Maturidade</th>
                          <th className="px-6 py-4 md:px-10 md:py-5 text-left text-xs md:text-sm font-black text-slate-400 uppercase tracking-wider no-print whitespace-nowrap">Ação</th>
                      </tr>
                  </thead>
@@ -341,11 +366,11 @@ const AdminDashboard: React.FC = () => {
                              <td className="px-6 py-4 md:px-10 md:py-6 text-sm md:text-base font-medium text-slate-500">{new Date(sub.timestamp).toLocaleDateString('pt-BR')}</td>
                              <td className="px-6 py-4 md:px-10 md:py-6">
                                  <div className="flex items-center gap-3">
-                                     <span className={`font-black text-lg md:text-xl ${sub.result.percentage < 40 ? 'text-red-600' : sub.result.percentage < 80 ? 'text-amber-500' : 'text-emerald-600'}`}>
-                                         {sub.result.percentage.toFixed(0)}%
+                                     <span className={`font-black text-lg md:text-xl ${sub.result?.percentage < 40 ? 'text-red-600' : sub.result?.percentage < 80 ? 'text-amber-500' : 'text-emerald-600'}`}>
+                                         {sub.result?.percentage?.toFixed(0) || 0}%
                                      </span>
-                                     <span className={`px-2 py-1 md:px-3 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-wide border whitespace-nowrap ${sub.result.percentage < 40 ? 'bg-red-50 text-red-700 border-red-200' : sub.result.percentage < 80 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-                                         {sub.result.level}
+                                     <span className={`px-2 py-1 md:px-3 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-wide border whitespace-nowrap ${sub.result?.percentage < 40 ? 'bg-red-50 text-red-700 border-red-200' : sub.result?.percentage < 80 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                                         {sub.result?.level || 'N/A'}
                                      </span>
                                  </div>
                              </td>

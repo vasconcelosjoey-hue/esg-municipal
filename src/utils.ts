@@ -26,6 +26,7 @@ export const loginUser = async (name: string, pin: string) => {
         await setDoc(doc(db, 'users', newUserCredential.user.uid), {
           nome: name,
           senha: pin,
+          setor: 'Geral', // Default, updated via UI later usually
           uid: newUserCredential.user.uid,
           createdAt: serverTimestamp()
         });
@@ -312,13 +313,20 @@ export const saveSubmission = async (
     id: docId,
     timestamp: new Date().toISOString(),
     respondent,
-    answers, 
-    evidences, 
-    result
+    result // Saving the result summary for quick listing
   };
 
   try {
     await setDoc(doc(db, COLLECTION_NAME, docId), submission, { merge: true });
+    
+    // Also ensure user profile is updated in 'users' collection
+    await setDoc(doc(db, 'users', docId), {
+        nome: respondent.name,
+        setor: respondent.sector,
+        uid: docId,
+        lastSubmission: serverTimestamp()
+    }, { merge: true });
+
     clearLocalProgress();
     return { savedToCloud: true, savedLocal: false };
   } catch (err: any) {
@@ -327,28 +335,54 @@ export const saveSubmission = async (
   }
 };
 
-// --- 6. FETCH SUBMISSIONS (ADMIN LIST) ---
+// --- 6. FETCH SUBMISSIONS (ADMIN LIST - ROBUST) ---
 
-export const getSubmissions = async (): Promise<Submission[]> => {
+export const fetchAllSubmissions = async (): Promise<Submission[]> => {
   try {
-    // Only fetches the parent documents for the list view
-    const q = query(collection(db, COLLECTION_NAME), orderBy("timestamp", "desc"));
-    const snap = await getDocs(q);
+    // 1. Get all submissions metadata
+    const subQuery = query(collection(db, COLLECTION_NAME), orderBy("timestamp", "desc"));
+    const subSnapshot = await getDocs(subQuery);
 
-    return snap.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Submission[];
+    // 2. Get all users to join profile data
+    const usersSnapshot = await getDocs(collection(db, 'users'));
+    const usersMap: Record<string, any> = {};
+    usersSnapshot.forEach(doc => {
+        usersMap[doc.id] = doc.data();
+    });
+
+    // 3. Map and Join
+    const submissions: Submission[] = subSnapshot.docs.map(doc => {
+        const data = doc.data();
+        const uid = doc.id;
+        const userProfile = usersMap[uid];
+
+        // Prefer data from 'users' collection if available, otherwise fallback to submission data
+        const respondent: RespondentData = {
+            uid: uid,
+            name: userProfile?.nome || data.respondent?.name || 'Desconhecido',
+            sector: userProfile?.setor || data.respondent?.sector || 'Geral'
+        };
+
+        return {
+            id: uid,
+            timestamp: data.timestamp || new Date().toISOString(),
+            respondent: respondent,
+            result: data.result, // Assuming result is stored in the parent doc by saveSubmission
+            answers: {} // Empty for list view, will be fetched in details
+        };
+    });
+
+    return submissions;
   } catch (err) {
-    console.error("Erro ao buscar dados no Firebase:", err);
+    console.error("Erro ao buscar submissões:", err);
     return [];
   }
 };
 
-// Alias for semantic clarity
-export const fetchSubmissions = getSubmissions;
+// Alias for compatibility
+export const getSubmissions = fetchAllSubmissions;
 
-// --- 7. FETCH SUBMISSION DETAILS (ADMIN DETAIL - FULL RECONSTRUCTION) ---
+// --- 7. FETCH SUBMISSION DETAILS (ADMIN DETAIL - DEEP FETCH) ---
 
 export const fetchSubmissionDetails = async (uid: string): Promise<{
     respondent: RespondentData;
@@ -357,18 +391,33 @@ export const fetchSubmissionDetails = async (uid: string): Promise<{
     evidences: EvidencesState;
 } | null> => {
     try {
-        // 1. Fetch Parent Doc
-        const parentDocRef = doc(db, COLLECTION_NAME, uid);
-        const parentSnap = await getDoc(parentDocRef);
+        // 1. Fetch User Profile (Source of Truth for Name/Sector)
+        const userDocRef = doc(db, 'users', uid);
+        const userSnap = await getDoc(userDocRef);
+        let userData = userSnap.exists() ? userSnap.data() : null;
 
-        if (!parentSnap.exists()) return null;
-
-        const parentData = parentSnap.data() as Submission;
+        // 2. Fetch Submission Parent Doc (Source of Truth for Result/Timestamp)
+        const subDocRef = doc(db, COLLECTION_NAME, uid);
+        const subSnap = await getDoc(subDocRef);
         
+        if (!subSnap.exists() && !userData) {
+            console.warn(`Nenhum dado encontrado para UID: ${uid}`);
+            return null;
+        }
+
+        const subData = subSnap.exists() ? subSnap.data() : {};
+
+        // Construct Respondent
+        const respondent: RespondentData = {
+            uid: uid,
+            name: userData?.nome || subData?.respondent?.name || 'Desconhecido',
+            sector: userData?.setor || subData?.respondent?.sector || 'Não informado'
+        };
+
         const reconstructedAnswers: AnswersState = {};
         const reconstructedEvidences: EvidencesState = {};
 
-        // 2. Fetch Subcollection 'respostas'
+        // 3. Fetch Subcollection 'respostas' (Source of Truth for Answers)
         const q = query(collection(db, 'submissions', uid, 'respostas'));
         const snapshot = await getDocs(q);
 
@@ -396,9 +445,13 @@ export const fetchSubmissionDetails = async (uid: string): Promise<{
             }
         });
 
+        // 4. Recalculate Result to ensure integrity with fetched answers
+        // (In case the summary in parent doc is outdated or missing)
+        const freshResult = calculateScore(reconstructedAnswers);
+
         return {
-            respondent: parentData.respondent,
-            result: parentData.result,
+            respondent,
+            result: freshResult, // Using recalculated result
             answers: reconstructedAnswers,
             evidences: reconstructedEvidences
         };
