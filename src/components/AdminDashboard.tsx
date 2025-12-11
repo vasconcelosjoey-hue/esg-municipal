@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { getSubmissions, generateFullActionPlan } from '../utils';
+import { getSubmissions, generateFullActionPlan, deleteSubmission, clearAllSubmissions } from '../utils';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts';
 import { CATEGORIES } from '../constants';
 import { Submission, TimeFrame, ActionPlanItem, AssessmentResult } from '../types';
@@ -45,6 +45,36 @@ const AdminDashboard: React.FC = () => {
 
   const handleRefresh = () => {
      setRefreshKey(prev => prev + 1);
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+      if (confirm(`Tem certeza que deseja apagar o registro de "${name}"?\nEssa ação não pode ser desfeita e removerá o dado do painel.`)) {
+          const success = await deleteSubmission(id);
+          if (success) {
+              setSubmissions(prev => prev.filter(s => s.id !== id));
+          } else {
+              alert('Erro ao apagar o registro. Verifique sua conexão.');
+          }
+      }
+  };
+
+  const handleClearAll = async () => {
+      const confirmation = prompt('⚠️ PERIGO: Isso apagará TODOS os questionários do banco de dados (Nuvem e Local).\n\nPara confirmar e ZERAR O SISTEMA, digite "APAGAR" abaixo:');
+      
+      if (confirmation === 'APAGAR') {
+          setLoading(true);
+          const success = await clearAllSubmissions();
+          // Force wait a bit to ensure propagation
+          await new Promise(r => setTimeout(r, 1000));
+          setLoading(false);
+          
+          if (success) {
+              setSubmissions([]);
+              alert('Banco de dados limpo com sucesso! O sistema está pronto para novos testes.');
+          } else {
+              alert('Erro ao limpar banco de dados. Verifique permissões ou conexão.');
+          }
+      }
   };
 
   // --- AGGREGATE LOGIC ---
@@ -229,6 +259,15 @@ const AdminDashboard: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
             <span>Baixar PDF</span>
+        </button>
+        <button 
+            onClick={handleClearAll}
+            className="flex items-center justify-center gap-2 bg-red-600 text-white border border-red-700 px-6 py-4 rounded-xl font-bold transition-all shadow-md hover:shadow-lg hover:bg-red-700 ml-0 sm:ml-4"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Limpar Banco de Dados
         </button>
       </div>
 
@@ -418,15 +457,26 @@ const AdminDashboard: React.FC = () => {
                                  </div>
                              </td>
                              <td className="px-6 py-4 md:px-10 md:py-6 no-print">
-                                 <button 
-                                    onClick={() => setSelectedSubmission(sub)}
-                                    className="text-emerald-700 font-bold text-xs md:text-sm bg-emerald-50 border border-emerald-100 px-3 py-2 md:px-5 md:py-3 rounded-xl hover:bg-emerald-600 hover:text-white hover:shadow-lg transition-all active:scale-95 flex items-center gap-2 whitespace-nowrap"
-                                 >
-                                     Ver Detalhes
-                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 hidden md:block" viewBox="0 0 20 20" fill="currentColor">
-                                         <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                                     </svg>
-                                 </button>
+                                 <div className="flex items-center gap-2">
+                                     <button 
+                                        onClick={() => setSelectedSubmission(sub)}
+                                        className="text-emerald-700 font-bold text-xs md:text-sm bg-emerald-50 border border-emerald-100 px-3 py-2 md:px-5 md:py-3 rounded-xl hover:bg-emerald-600 hover:text-white hover:shadow-lg transition-all active:scale-95 flex items-center gap-2 whitespace-nowrap"
+                                     >
+                                         Ver Detalhes
+                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 hidden md:block" viewBox="0 0 20 20" fill="currentColor">
+                                             <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                                         </svg>
+                                     </button>
+                                     <button
+                                         onClick={() => handleDelete(sub.id, sub.respondent.name)}
+                                         className="text-red-600 bg-red-50 border border-red-100 p-3 rounded-xl hover:bg-red-600 hover:text-white transition-all"
+                                         title="Excluir Registro"
+                                     >
+                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                         </svg>
+                                     </button>
+                                 </div>
                              </td>
                          </tr>
                      ))}

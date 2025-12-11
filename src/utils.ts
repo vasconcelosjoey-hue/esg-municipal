@@ -1,7 +1,7 @@
 import { AnswersState, AnswerValue, AssessmentResult, MaturityLevel, ActionPlanItem, CategoryData, Submission, RespondentData, TimeFrame } from './types';
 import { CATEGORIES } from './constants';
 import { db } from './firebase';
-import { collection, addDoc, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, writeBatch } from 'firebase/firestore';
 
 export const calculateScore = (answers: AnswersState): AssessmentResult => {
   let totalScore = 0;
@@ -163,7 +163,7 @@ export const getSubmissions = async (): Promise<Submission[]> => {
         // Simple deduplication check based on timestamp and name
         const exists = submissions.some(s => s.timestamp === localSub.timestamp && s.respondent.name === localSub.respondent.name);
         if (!exists) {
-            submissions.push({ ...(localSub as object), isLocal: true } as Submission);
+            submissions.push({ ...localSub, isLocal: true } as Submission);
         }
     });
     
@@ -180,6 +180,56 @@ export const getSubmissions = async (): Promise<Submission[]> => {
   }
 
   return submissions;
+};
+
+// --- DELETE FUNCTIONS ---
+
+export const deleteSubmission = async (id: string): Promise<boolean> => {
+  try {
+    if (id.startsWith('local-')) {
+       // LocalStorage deletion
+       const existing = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+       const updated = existing.filter((s: any) => s.id !== id);
+       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+       return true;
+    } else {
+       // Firebase deletion
+       await deleteDoc(doc(db, COLLECTION_NAME, id));
+       return true;
+    }
+  } catch (error) {
+    console.error("Erro ao deletar:", error);
+    return false;
+  }
+};
+
+export const clearAllSubmissions = async (): Promise<boolean> => {
+  try {
+    // 1. Clear Firebase
+    const q = query(collection(db, COLLECTION_NAME));
+    const snapshot = await getDocs(q);
+    
+    // Batch delete (limit 500 per batch, simple implementation for now)
+    const batch = writeBatch(db);
+    let count = 0;
+    
+    snapshot.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+      count++;
+    });
+
+    if (count > 0) {
+       await batch.commit();
+    }
+
+    // 2. Clear LocalStorage
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
+    
+    return true;
+  } catch (error) {
+    console.error("Erro ao limpar banco de dados:", error);
+    return false;
+  }
 };
 
 
