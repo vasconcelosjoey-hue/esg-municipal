@@ -173,82 +173,35 @@ const AdminDashboard: React.FC = () => {
               <div className="animus-cover-decor-bottom"></div>
           </div>
 
-          {/* PAGE 2: TOC & OVERVIEW */}
-          <div className="print-page-content break-page">
-              <h2 className="animus-section-title">Sumário Executivo</h2>
-              <div className="mb-8 px-2 p-6 bg-slate-50 rounded-xl border border-slate-100">
-                  <div className="animus-toc-item"><span>01. Diagnóstico Geral e KPIs</span><span className="animus-toc-dots"></span><span className="font-bold">02</span></div>
-                  <div className="animus-toc-item"><span>02. Análise Setorial e Temática</span><span className="animus-toc-dots"></span><span className="font-bold">02</span></div>
-                  <div className="animus-toc-item"><span>03. Plano de Ação (Curto Prazo)</span><span className="animus-toc-dots"></span><span className="font-bold">03</span></div>
-                  <div className="animus-toc-item"><span>04. Visão de Longo Prazo</span><span className="animus-toc-dots"></span><span className="font-bold">03</span></div>
-              </div>
-
+          {/* PAGE 2: GENERAL ANALYSIS & KPIs (No Charts, No TOC) */}
+          <div className="print-page-content">
               <h2 className="animus-section-title">1. Diagnóstico Geral</h2>
               <div className="animus-cols-2 mb-8">
                   <p className="animus-text">
-                      O presente relatório consolida os dados de <strong className="text-indigo-900">{submissions.length} diagnósticos setoriais</strong> realizados pela administração municipal. 
+                      O presente relatório consolida os dados dos diagnósticos setoriais realizados pela administração municipal. 
                       O índice global de maturidade ESG atingiu a marca de <strong className="text-indigo-900">{aggregateResult?.percentage.toFixed(0)}%</strong>, classificando a gestão no nível <strong className="text-indigo-900 uppercase">{aggregateResult?.level}</strong>.
                   </p>
                   <p className="animus-text">
-                      Esta pontuação reflete o comprometimento da gestão com práticas sustentáveis. A análise dos dados indica que, embora existam iniciativas isoladas de sucesso, a padronização de processos e a integração de dados entre secretarias continuam sendo os principais desafios para a evolução do indicador.
+                      Esta pontuação reflete o comprometimento da gestão com práticas sustentáveis. A análise dos dados indica que, embora existam iniciativas isoladas de sucesso, a padronização de processos e a integração de dados entre as secretarias participantes continuam sendo os principais desafios para a evolução do indicador.
                   </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-6 print:gap-8">
-                  <div className="bg-white p-4 rounded-xl border border-slate-200 break-inside-avoid shadow-sm print:shadow-none">
-                      <h3 className="font-bold text-slate-800 mb-4 text-center text-xs uppercase tracking-wider">Participação por Setor</h3>
-                      <div className="chart-container">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie 
-                                    data={sectorData} 
-                                    dataKey="value" 
-                                    nameKey="name" 
-                                    cx="50%" 
-                                    cy="50%" 
-                                    outerRadius={60} 
-                                    innerRadius={35}
-                                    paddingAngle={4}
-                                    stroke="none"
-                                >
-                                    {sectorData.map((_, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip content={<CustomTooltip />} />
-                                <Legend layout="vertical" verticalAlign="middle" align="right" wrapperStyle={{fontSize: '9px', fontWeight: 600}} iconType="circle" />
-                            </PieChart>
-                        </ResponsiveContainer>
-                      </div>
+              {/* KPIs / Big Numbers instead of Charts */}
+              <div className="grid grid-cols-3 gap-6 mb-8 break-inside-avoid">
+                  <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 text-center">
+                     <div className="text-4xl font-black text-indigo-900">{submissions.length}</div>
+                     <div className="text-[10px] uppercase font-bold text-slate-500 mt-2 tracking-wider">Diagnósticos Realizados</div>
                   </div>
-                  
-                  <div className="bg-white p-4 rounded-xl border border-slate-200 break-inside-avoid shadow-sm print:shadow-none">
-                      <h3 className="font-bold text-slate-800 mb-4 text-center text-xs uppercase tracking-wider">Maturidade por Eixo</h3>
-                      <div className="chart-container">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={Object.entries(aggregateResult?.categoryScores || {}).map(([k, v]) => ({
-                                name: CATEGORIES.find(c => c.id === k)?.title.split(' ')[1].substring(0,3).toUpperCase(), 
-                                fullName: CATEGORIES.find(c => c.id === k)?.title,
-                                score: v.percentage
-                            }))} margin={{top: 10, right: 0, left: -20, bottom: 0}}>
-                                <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#f1f5f9" />
-                                <XAxis dataKey="name" tick={{fontSize: 9, fill: '#64748b', fontWeight: 600}} axisLine={false} tickLine={false} />
-                                <YAxis hide domain={[0, 100]} />
-                                <Tooltip content={<CustomTooltip />} cursor={{fill: '#f8fafc'}} />
-                                <Bar dataKey="score" radius={[4, 4, 0, 0]} barSize={24}>
-                                    {Object.entries(aggregateResult?.categoryScores || {}).map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={getScoreColor(entry[1].percentage)} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                      </div>
+                  <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 text-center">
+                     <div className="text-4xl font-black text-emerald-600">{sectorData.length}</div>
+                     <div className="text-[10px] uppercase font-bold text-slate-500 mt-2 tracking-wider">Setores Participantes</div>
+                  </div>
+                  <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 text-center">
+                      <div className="text-4xl font-black text-indigo-900">{aggregateResult?.percentage.toFixed(0)}%</div>
+                      <div className="text-[10px] uppercase font-bold text-slate-500 mt-2 tracking-wider">Score Global Médio</div>
                   </div>
               </div>
-          </div>
 
-          {/* PAGE 3: ACTION PLAN */}
-          <div className="print-page-content">
              <h2 className="animus-section-title">2. Plano de Ação Integrado</h2>
              
              <div className="animus-grid-actions">
