@@ -178,6 +178,13 @@ const Dashboard: React.FC<Props> = ({ result, respondentData }) => {
                     );
                 })}
             </div>
+
+            {/* Evidence Note for PDF */}
+            <div className="mt-8 border-t border-slate-300 pt-4">
+                 <p className="text-[9px] text-slate-500 italic">
+                     * Notas de auditoria: Este relatório pode conter referências a evidências digitais (arquivos, fotos, documentos) anexados durante o preenchimento. Para visualizar ou baixar os anexos originais, acesse o Painel Administrativo do sistema ESG.
+                 </p>
+            </div>
         </div>
 
         <div className="print-footer">

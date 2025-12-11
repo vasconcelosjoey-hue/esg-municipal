@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CATEGORIES } from './constants';
-import { AnswersState, AssessmentResult, RespondentData } from './types';
-import { calculateScore, saveSubmission } from './utils';
+import { AnswersState, AssessmentResult, RespondentData, EvidencesState } from './types';
+import { calculateScore, saveSubmission, loadDraft, clearLocalProgress } from './utils';
 import Assessment from './components/Assessment';
 import Dashboard from './components/Dashboard'; 
 import AdminDashboard from './components/AdminDashboard';
@@ -14,7 +14,82 @@ enum View {
   ADMIN_DASHBOARD = 'ADMIN_DASHBOARD'
 }
 
-// Modal Component for Respondent Data
+// --- DISCLAIMER MODAL ---
+const DisclaimerModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[110] p-4 backdrop-blur-sm animate-fade-in">
+        <div className="bg-white p-8 rounded-2xl max-w-lg w-full shadow-2xl border border-emerald-500/30">
+            <h3 className="text-2xl font-black text-slate-900 mb-4 flex items-center gap-2">
+                <span className="text-3xl">⚠️</span> Atenção Importante
+            </h3>
+            <div className="space-y-4 text-slate-600 text-sm leading-relaxed">
+                <p>Para garantir a segurança e a qualidade das informações, observe as seguintes recomendações:</p>
+                <ul className="list-disc pl-5 space-y-2">
+                    <li><strong>Dispositivo:</strong> Recomendamos o uso de computador ou notebook para anexar arquivos com facilidade.</li>
+                    <li><strong>Evidências:</strong> O tamanho máximo permitido por arquivo é <strong>1MB</strong> (PDF, JPG, PNG, DOCX, XLSX).</li>
+                    <li><strong>Autosave:</strong> Seu progresso é salvo automaticamente neste dispositivo.</li>
+                    <li><strong>Segurança:</strong> Por segurança, sua sessão expira após <strong>10 minutos</strong> de inatividade.</li>
+                </ul>
+            </div>
+            <button 
+                onClick={onClose}
+                className="mt-8 w-full py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors shadow-lg"
+            >
+                Entendi, vamos começar
+            </button>
+        </div>
+    </div>
+  );
+};
+
+// --- INACTIVITY TIMER ---
+const InactivityTimer: React.FC<{ isActive: boolean; onTimeout: () => void }> = ({ isActive, onTimeout }) => {
+  const [timeLeft, setTimeLeft] = useState(600); // 10 minutes
+  const [showWarning, setShowWarning] = useState(false);
+  const timerRef = useRef<any>(null);
+
+  const resetTimer = () => {
+    setTimeLeft(600);
+    setShowWarning(false);
+  };
+
+  useEffect(() => {
+    if (!isActive) return;
+
+    const events = ['mousemove', 'keydown', 'click', 'scroll'];
+    const handleActivity = () => resetTimer();
+
+    events.forEach(e => window.addEventListener(e, handleActivity));
+
+    timerRef.current = setInterval(() => {
+        setTimeLeft(prev => {
+            if (prev <= 1) {
+                clearInterval(timerRef.current);
+                onTimeout();
+                return 0;
+            }
+            if (prev <= 120) setShowWarning(true); // Warn at 2 mins
+            return prev - 1;
+        });
+    }, 1000);
+
+    return () => {
+        events.forEach(e => window.removeEventListener(e, handleActivity));
+        if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isActive, onTimeout]);
+
+  if (!showWarning) return null;
+
+  return (
+    <div className="fixed top-0 left-0 w-full bg-red-600 text-white text-center py-2 z-[120] font-bold animate-pulse">
+        Sessão expirando em {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}. Mova o mouse para continuar.
+    </div>
+  );
+};
+
+// --- RESPONDENT MODAL ---
 const RespondentModal: React.FC<{ 
   isOpen: boolean; 
   onClose: () => void; 
@@ -39,7 +114,6 @@ const RespondentModal: React.FC<{
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[100] p-4 animate-fade-in backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md border border-slate-200 relative overflow-hidden">
-        {/* Decorative background element inside modal */}
         <div className="absolute -top-10 -right-10 w-32 h-32 bg-emerald-100 rounded-full blur-2xl opacity-50"></div>
         
         <div className="text-center mb-8 relative z-10">
@@ -112,12 +186,31 @@ const LeafIcon = ({ className }: { className: string }) => (
 const App: React.FC = () => {
   const [view, setView] = useState<View>(View.HOME);
   const [answers, setAnswers] = useState<AnswersState>({});
+  const [evidences, setEvidences] = useState<EvidencesState>({});
   const [result, setResult] = useState<AssessmentResult | null>(null);
   const [respondentData, setRespondentData] = useState<RespondentData | null>(null);
+  
   const [showModal, setShowModal] = useState(false);
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
+  
   const [adminPassword, setAdminPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+
+  // Load draft on mount
+  useEffect(() => {
+    const draft = loadDraft();
+    if (draft) {
+      if (confirm('Encontramos um diagnóstico em andamento salvo neste dispositivo. Deseja continuar de onde parou?')) {
+        setRespondentData(draft.respondent);
+        setAnswers(draft.answers);
+        setEvidences(draft.evidences);
+        setView(View.ASSESSMENT);
+      } else {
+        clearLocalProgress();
+      }
+    }
+  }, []);
 
   // FIX: Scroll to top whenever the view changes
   useEffect(() => {
@@ -126,6 +219,10 @@ const App: React.FC = () => {
 
   const handleAnswerChange = (questionId: string, value: any) => {
     setAnswers(prev => ({ ...prev, [questionId]: value }));
+  };
+  
+  const handleEvidenceChange = (questionId: string, evidence: any) => {
+      setEvidences(prev => ({ ...prev, [questionId]: evidence }));
   };
 
   useEffect(() => {
@@ -145,11 +242,15 @@ const App: React.FC = () => {
   const handleModalSubmit = (data: RespondentData) => {
     setRespondentData(data);
     setShowModal(false);
-    setView(View.ASSESSMENT);
+    setShowDisclaimer(true);
+  };
+  
+  const handleDisclaimerClose = () => {
+      setShowDisclaimer(false);
+      setView(View.ASSESSMENT);
   };
 
   const handleFinishAssessment = async () => {
-    // Force recalculation to ensure data integrity
     const finalResult = calculateScore(answers);
     setResult(finalResult);
 
@@ -157,14 +258,12 @@ const App: React.FC = () => {
       setIsSaving(true);
       
       try {
-        const { savedToCloud, error } = await saveSubmission(respondentData, answers, finalResult);
+        const { savedToCloud, error } = await saveSubmission(respondentData, answers, evidences, finalResult);
         
         if (savedToCloud) {
             setView(View.SUCCESS);
         } else {
-            // It saved locally (fallback) but failed cloud. Warn the user.
             alert(`ATENÇÃO: Seus dados foram salvos no seu aparelho, mas NÃO foram enviados para a central (Nuvem).\n\nMotivo: ${error}\n\nO Administrador NÃO conseguirá ver suas respostas. Tente novamente mais tarde com uma conexão melhor.`);
-            // We allow them to see success screen since they did their part, but with the warning above.
             setView(View.SUCCESS);
         }
 
@@ -194,16 +293,25 @@ const App: React.FC = () => {
       setLoginError('Senha incorreta.');
     }
   };
+  
+  const handleSessionTimeout = () => {
+      alert("Sua sessão expirou por inatividade. O progresso foi salvo automaticamente.");
+      setView(View.HOME);
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans overflow-x-hidden">
+      <InactivityTimer isActive={view === View.ASSESSMENT} onTimeout={handleSessionTimeout} />
+      
       <RespondentModal 
         isOpen={showModal} 
         onClose={() => setShowModal(false)} 
         onSubmit={handleModalSubmit} 
       />
+      
+      <DisclaimerModal isOpen={showDisclaimer} onClose={handleDisclaimerClose} />
 
-      {/* Navbar Responsive Fix - Using Flex Wrap or shrinking text for very small screens */}
+      {/* Navbar Responsive Fix */}
       <nav className="bg-white/90 backdrop-blur-md text-emerald-900 shadow-sm sticky top-0 z-50 no-print border-b border-emerald-100 transition-all duration-300">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex justify-between h-20 items-center">
@@ -219,7 +327,7 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            {/* Buttons Section - Optimized for small screens */}
+            {/* Buttons Section */}
             <div className="flex items-center gap-2 shrink-0">
               <button 
                 onClick={handleStartAssessment}
@@ -241,7 +349,6 @@ const App: React.FC = () => {
       <main className="flex-grow w-full mx-auto">
         {view === View.HOME && (
           <div className="relative w-full overflow-hidden">
-            {/* Background Animated Blobs */}
             <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
               <div className="absolute top-0 left-1/4 w-96 h-96 bg-emerald-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
               <div className="absolute top-0 right-1/4 w-96 h-96 bg-teal-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
@@ -250,8 +357,6 @@ const App: React.FC = () => {
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-24 lg:pt-24 lg:pb-32">
               <div className="flex flex-col-reverse lg:flex-row items-center gap-12 lg:gap-20">
-                
-                {/* Text Content */}
                 <div className="flex-1 text-center lg:text-left animate-fade-in-up">
                   <div className="inline-block px-4 py-1.5 rounded-full bg-emerald-100/50 border border-emerald-200 text-emerald-800 text-sm font-bold tracking-wide mb-6 backdrop-blur-sm">
                     🌿 Gestão Pública Sustentável
@@ -294,29 +399,23 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Animated Illustration */}
                 <div className="flex-1 w-full max-w-lg lg:max-w-none relative animate-float">
                   <div className="relative aspect-square">
                      <div className="absolute inset-0 bg-gradient-to-tr from-emerald-100 to-teal-50 rounded-[3rem] transform rotate-3 shadow-2xl"></div>
                      <div className="absolute inset-0 bg-white/40 backdrop-blur-xl rounded-[3rem] transform -rotate-2 border border-white/50 shadow-lg flex items-center justify-center p-8 overflow-hidden">
-                        
                         <div className="relative w-full h-full">
                            <div className="absolute top-0 right-0 w-20 h-20 bg-yellow-400 rounded-full opacity-20 blur-xl animate-pulse"></div>
-                           
                            <div className="absolute bottom-10 left-4 w-3/4 h-32 flex items-end gap-2 z-10">
                               <div className="w-1/4 h-[40%] bg-emerald-200 rounded-t-lg animate-pulse"></div>
                               <div className="w-1/4 h-[60%] bg-emerald-300 rounded-t-lg animate-pulse animation-delay-2000"></div>
                               <div className="w-1/4 h-[80%] bg-emerald-400 rounded-t-lg animate-pulse animation-delay-4000"></div>
                               <div className="w-1/4 h-[100%] bg-emerald-500 rounded-t-lg shadow-lg"></div>
                            </div>
-
                            <LeafIcon className="absolute top-10 left-10 w-12 h-12 text-emerald-500 animate-sway opacity-80" />
                            <LeafIcon className="absolute top-20 right-20 w-8 h-8 text-teal-500 animate-sway animation-delay-2000 opacity-60" />
                            <LeafIcon className="absolute bottom-32 right-10 w-10 h-10 text-lime-500 animate-sway animation-delay-4000 opacity-70" />
-
                            <CloudIcon className="absolute top-4 left-20 w-24 h-16 text-slate-400 animate-float-delayed" />
                            <CloudIcon className="absolute bottom-20 right-[-20px] w-32 h-20 text-slate-300 animate-float" />
-                           
                            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white/90 backdrop-blur-md px-6 py-3 rounded-2xl shadow-xl border border-emerald-100 text-center z-20">
                               <span className="block text-3xl font-black text-emerald-600">85%</span>
                               <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Meta de Sustentabilidade</span>
@@ -327,7 +426,6 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {/* Feature Cards / Levels */}
               <div className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-8">
                 {[
                   {
@@ -381,7 +479,10 @@ const App: React.FC = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <Assessment 
               answers={answers} 
+              evidences={evidences}
+              respondent={respondentData!}
               onAnswerChange={handleAnswerChange} 
+              onEvidenceChange={handleEvidenceChange}
               onFinish={handleFinishAssessment}
               isSaving={isSaving}
             />
@@ -408,10 +509,10 @@ const App: React.FC = () => {
                 Suas respostas foram registradas com segurança no banco de dados ESG Municipal.
                 </p>
                 <div className="flex flex-col sm:flex-row justify-center gap-4 px-4">
-                  {/* USER_DASHBOARD Button REMOVED - Admin Only Access */}
                   <button 
                   onClick={() => {
                       setAnswers({});
+                      setEvidences({});
                       setRespondentData(null);
                       setResult(null);
                       setView(View.HOME);
@@ -464,9 +565,7 @@ const App: React.FC = () => {
       </main>
 
       <footer className="bg-white border-t border-slate-200 text-slate-500 py-12 text-center mt-auto relative overflow-hidden">
-        {/* Footer subtle decoration */}
         <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-400 via-teal-500 to-lime-400"></div>
-        
         <p className="font-medium mb-2">&copy; {new Date().getFullYear()} ESG Municipal Diagnostic.</p>
         <p className="text-[10px] font-black tracking-[0.2em] text-emerald-600 opacity-80 uppercase">POWERED BY JOI.A.</p>
       </footer>

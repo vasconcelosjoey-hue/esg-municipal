@@ -42,6 +42,16 @@ export interface RespondentData {
   sector: string;
 }
 
+export interface Evidence {
+  questionId: string;
+  comment: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileType?: string;
+  fileSize?: number;
+  timestamp: string;
+}
+
 export interface AssessmentResult {
   totalScore: number;
   maxScore: number;
@@ -55,8 +65,10 @@ export interface Submission {
   timestamp: string;
   respondent: RespondentData;
   answers: AnswersState;
+  evidences?: Record<string, Evidence>;
   result: AssessmentResult;
   isLocal?: boolean;
 }
 
 export type AnswersState = Record<string, AnswerValue>;
+export type EvidencesState = Record<string, Evidence>;
