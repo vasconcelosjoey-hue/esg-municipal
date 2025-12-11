@@ -1,9 +1,27 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { getSubmissions, generateFullActionPlan, deleteSubmission, clearAllSubmissions } from '../utils';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, PieChart, Pie, Legend, Tooltip } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, PieChart, Pie, Legend, Tooltip, AreaChart, Area } from 'recharts';
 import { CATEGORIES } from '../constants';
 import { Submission, TimeFrame, ActionPlanItem, AssessmentResult } from '../types';
 import Dashboard from './Dashboard';
+
+// Premium Color Palette
+const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white/95 backdrop-blur-sm p-4 border border-slate-200 rounded-xl shadow-xl">
+        <p className="font-bold text-slate-800 mb-1">{label}</p>
+        <p className="text-sm font-semibold" style={{ color: payload[0].fill }}>
+          {payload[0].name}: {Number(payload[0].value).toFixed(1)}
+          {payload[0].name === 'Score' || payload[0].name === 'Maturidade' ? '%' : ''}
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
 
 const AdminDashboard: React.FC = () => {
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
@@ -31,22 +49,6 @@ const AdminDashboard: React.FC = () => {
   }, [refreshKey]);
 
   const handleRefresh = () => setRefreshKey(prev => prev + 1);
-
-  const handleDelete = async (id: string, name: string) => {
-      if (confirm(`Excluir registro de "${name}"?`)) {
-          const success = await deleteSubmission(id);
-          if (success) setSubmissions(prev => prev.filter(s => s.id !== id));
-      }
-  };
-
-  const handleClearAll = async () => {
-      if (prompt('⚠️ Digite "APAGAR" para limpar tudo:') === 'APAGAR') {
-          setLoading(true);
-          const success = await clearAllSubmissions();
-          setLoading(false);
-          if (success) setSubmissions([]);
-      }
-  };
 
   // --- AGGREGATE CALCS ---
   const aggregateResult: AssessmentResult | null = useMemo(() => {
@@ -92,8 +94,7 @@ const AdminDashboard: React.FC = () => {
     const counts: Record<string, number> = {};
     submissions.forEach(s => {
       const sector = s.respondent.sector.trim() || 'N/A';
-      const displayName = sector.length > 20 ? sector.substring(0, 20) + '.' : sector;
-      counts[displayName] = (counts[displayName] || 0) + 1;
+      counts[sector] = (counts[sector] || 0) + 1;
     });
     return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
   }, [submissions]);
@@ -109,6 +110,12 @@ const AdminDashboard: React.FC = () => {
       return '⚡';
   };
 
+  const getScoreColor = (score: number) => {
+      if (score < 40) return '#ef4444'; // Red
+      if (score < 80) return '#f59e0b'; // Amber
+      return '#10b981'; // Emerald
+  };
+
   if (loading) return <div className="p-10 text-center">Carregando...</div>;
   if (selectedSubmission) return <div className="animate-fade-in"><button onClick={() => setSelectedSubmission(null)} className="no-print mb-4 px-4 py-2 border rounded">Voltar</button><Dashboard result={selectedSubmission.result} respondentData={selectedSubmission.respondent} /></div>;
   if (submissions.length === 0) return <div className="p-10 text-center">Sem dados. <button onClick={handleRefresh}>Atualizar</button></div>;
@@ -117,11 +124,17 @@ const AdminDashboard: React.FC = () => {
     <div className="animate-fade-in pb-20 print:pb-0">
       
       {/* WEB CONTROLS */}
-      <div className="no-print mb-8 flex justify-between items-center bg-slate-100 p-4 rounded-xl">
-         <h2 className="text-xl font-bold">Painel Administrativo</h2>
-         <div className="flex gap-2">
-            <button onClick={handleRefresh} className="px-4 py-2 bg-white rounded border">Atualizar</button>
-            <button onClick={() => window.print()} className="px-4 py-2 bg-slate-900 text-white rounded font-bold">Imprimir Relatório</button>
+      <div className="no-print mb-8 flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-2xl shadow-lg border border-slate-100 gap-4">
+         <div>
+             <h2 className="text-2xl font-black text-slate-800">Painel Administrativo</h2>
+             <p className="text-slate-500 text-sm">Visão consolidada de {submissions.length} diagnósticos</p>
+         </div>
+         <div className="flex gap-3">
+            <button onClick={handleRefresh} className="px-5 py-2.5 bg-slate-50 hover:bg-slate-100 rounded-xl font-bold text-slate-600 transition-colors border border-slate-200">Atualizar</button>
+            <button onClick={() => window.print()} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg hover:shadow-indigo-200 transition-all flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                Gerar Relatório PDF
+            </button>
          </div>
       </div>
 
@@ -134,26 +147,25 @@ const AdminDashboard: React.FC = () => {
               
               <div className="animus-cover-content pt-10">
                   <div className="flex items-center gap-4 mb-8">
-                      {/* Logo Placeholder */}
-                      <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-indigo-900 font-bold text-xl">E</div>
-                      <span className="text-sm tracking-[0.2em] font-bold uppercase opacity-70">ESG Municipal</span>
+                      <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-xl flex items-center justify-center text-white font-bold text-xl border border-white/20">E</div>
+                      <span className="text-sm tracking-[0.3em] font-bold uppercase opacity-80 text-indigo-100">ESG Intelligence</span>
                   </div>
-                  <h1 className="animus-title">Relatório de<br/>Inteligência<br/>Estratégica</h1>
+                  <h1 className="animus-title leading-tight">Relatório de<br/>Performance<br/><span className="text-indigo-400">Integrada</span></h1>
               </div>
 
               <div className="animus-cover-content">
-                  <div className="animus-subtitle mb-8">
+                  <div className="animus-subtitle mb-8 border-indigo-400">
                       Prefeitura Municipal de<br/>
-                      <strong className="text-white text-2xl">Mogi das Cruzes</strong>
+                      <strong className="text-white text-3xl tracking-tight">Mogi das Cruzes</strong>
                   </div>
-                  <div className="flex justify-between items-end border-t border-white/20 pt-4">
-                      <div className="text-xs opacity-60">
-                          Versão 2.0 • Confidencial<br/>
+                  <div className="flex justify-between items-end border-t border-white/10 pt-6">
+                      <div className="text-xs font-medium opacity-60 leading-relaxed">
+                          Relatório Oficial v2.0<br/>
                           Gerado em {new Date().toLocaleDateString('pt-BR')}
                       </div>
                       <div className="text-right">
-                          <span className="block text-3xl font-bold">{aggregateResult?.percentage.toFixed(0)}%</span>
-                          <span className="text-xs uppercase tracking-wider opacity-80">Score Global</span>
+                          <span className="block text-5xl font-black tracking-tighter text-white">{aggregateResult?.percentage.toFixed(0)}%</span>
+                          <span className="text-xs uppercase tracking-widest font-bold opacity-80 text-emerald-400">Índice Global</span>
                       </div>
                   </div>
               </div>
@@ -164,29 +176,27 @@ const AdminDashboard: React.FC = () => {
           {/* PAGE 2: TOC & OVERVIEW */}
           <div className="print-page-content break-page">
               <h2 className="animus-section-title">Sumário Executivo</h2>
-              <div className="mb-10 px-2">
-                  <div className="animus-toc-item"><span>01. Diagnóstico Geral</span><span className="animus-toc-dots"></span><span>02</span></div>
-                  <div className="animus-toc-item"><span>02. Análise por Eixos</span><span className="animus-toc-dots"></span><span>02</span></div>
-                  <div className="animus-toc-item"><span>03. Plano de Ação (Curto Prazo)</span><span className="animus-toc-dots"></span><span>03</span></div>
-                  <div className="animus-toc-item"><span>04. Plano de Ação (Longo Prazo)</span><span className="animus-toc-dots"></span><span>03</span></div>
-                  <div className="animus-toc-item"><span>05. Conclusões</span><span className="animus-toc-dots"></span><span>04</span></div>
+              <div className="mb-8 px-2 p-6 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="animus-toc-item"><span>01. Diagnóstico Geral e KPIs</span><span className="animus-toc-dots"></span><span className="font-bold">02</span></div>
+                  <div className="animus-toc-item"><span>02. Análise Setorial e Temática</span><span className="animus-toc-dots"></span><span className="font-bold">02</span></div>
+                  <div className="animus-toc-item"><span>03. Plano de Ação (Curto Prazo)</span><span className="animus-toc-dots"></span><span className="font-bold">03</span></div>
+                  <div className="animus-toc-item"><span>04. Visão de Longo Prazo</span><span className="animus-toc-dots"></span><span className="font-bold">03</span></div>
               </div>
 
               <h2 className="animus-section-title">1. Diagnóstico Geral</h2>
-              <div className="animus-cols-2">
+              <div className="animus-cols-2 mb-8">
                   <p className="animus-text">
-                      O presente relatório consolida os dados de <strong>{submissions.length} diagnósticos setoriais</strong> realizados pela administração municipal. 
-                      O índice global de maturidade ESG atingiu a marca de <strong>{aggregateResult?.percentage.toFixed(0)}%</strong>, classificando a gestão no nível <strong>{aggregateResult?.level}</strong>.
+                      O presente relatório consolida os dados de <strong className="text-indigo-900">{submissions.length} diagnósticos setoriais</strong> realizados pela administração municipal. 
+                      O índice global de maturidade ESG atingiu a marca de <strong className="text-indigo-900">{aggregateResult?.percentage.toFixed(0)}%</strong>, classificando a gestão no nível <strong className="text-indigo-900 uppercase">{aggregateResult?.level}</strong>.
                   </p>
                   <p className="animus-text">
-                      Esta pontuação reflete o comprometimento da gestão com práticas sustentáveis, mas aponta para disparidades significativas entre os eixos temáticos.
-                      A seguir, apresentamos a decomposição analítica dos resultados e o plano de ação sugerido.
+                      Esta pontuação reflete o comprometimento da gestão com práticas sustentáveis. A análise dos dados indica que, embora existam iniciativas isoladas de sucesso, a padronização de processos e a integração de dados entre secretarias continuam sendo os principais desafios para a evolução do indicador.
                   </p>
               </div>
 
-              <div className="mt-8 grid grid-cols-2 gap-8">
-                  <div className="bg-slate-50 p-4 rounded border border-slate-200 break-inside-avoid">
-                      <h3 className="font-bold text-slate-700 mb-4 text-center text-xs uppercase tracking-wider">Distribuição por Setor</h3>
+              <div className="grid grid-cols-2 gap-6 print:gap-8">
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 break-inside-avoid shadow-sm print:shadow-none">
+                      <h3 className="font-bold text-slate-800 mb-4 text-center text-xs uppercase tracking-wider">Participação por Setor</h3>
                       <div className="chart-container">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
@@ -196,40 +206,40 @@ const AdminDashboard: React.FC = () => {
                                     nameKey="name" 
                                     cx="50%" 
                                     cy="50%" 
-                                    outerRadius={50} 
-                                    innerRadius={30}
-                                    fill="#6366f1"
-                                    paddingAngle={2}
-                                    labelLine={false}
-                                    label={({cx, cy, midAngle, innerRadius, outerRadius, percent}) => {
-                                        const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                                        const x = cx + radius * Math.cos(-midAngle * Math.PI / 180);
-                                        const y = cy + radius * Math.sin(-midAngle * Math.PI / 180);
-                                        return percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : '';
-                                    }}
+                                    outerRadius={60} 
+                                    innerRadius={35}
+                                    paddingAngle={4}
+                                    stroke="none"
                                 >
                                     {sectorData.map((_, index) => (
-                                        <Cell key={`cell-${index}`} fill={['#1e1b4b', '#4338ca', '#6366f1', '#818cf8', '#94a3b8'][index % 5]} />
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
-                                <Legend layout="vertical" verticalAlign="middle" align="right" wrapperStyle={{fontSize: '8px'}} />
+                                <Tooltip content={<CustomTooltip />} />
+                                <Legend layout="vertical" verticalAlign="middle" align="right" wrapperStyle={{fontSize: '9px', fontWeight: 600}} iconType="circle" />
                             </PieChart>
                         </ResponsiveContainer>
                       </div>
                   </div>
                   
-                  <div className="bg-slate-50 p-4 rounded border border-slate-200 break-inside-avoid">
-                      <h3 className="font-bold text-slate-700 mb-4 text-center text-xs uppercase tracking-wider">Maturidade por Eixo</h3>
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 break-inside-avoid shadow-sm print:shadow-none">
+                      <h3 className="font-bold text-slate-800 mb-4 text-center text-xs uppercase tracking-wider">Maturidade por Eixo</h3>
                       <div className="chart-container">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={Object.entries(aggregateResult?.categoryScores || {}).map(([k, v]) => ({
                                 name: CATEGORIES.find(c => c.id === k)?.title.split(' ')[1].substring(0,3).toUpperCase(), 
+                                fullName: CATEGORIES.find(c => c.id === k)?.title,
                                 score: v.percentage
-                            }))}>
-                                <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#e2e8f0" />
-                                <XAxis dataKey="name" tick={{fontSize: 8, fill: '#64748b'}} axisLine={false} tickLine={false} />
+                            }))} margin={{top: 10, right: 0, left: -20, bottom: 0}}>
+                                <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#f1f5f9" />
+                                <XAxis dataKey="name" tick={{fontSize: 9, fill: '#64748b', fontWeight: 600}} axisLine={false} tickLine={false} />
                                 <YAxis hide domain={[0, 100]} />
-                                <Bar dataKey="score" fill="#6366f1" radius={[2, 2, 0, 0]} barSize={20} />
+                                <Tooltip content={<CustomTooltip />} cursor={{fill: '#f8fafc'}} />
+                                <Bar dataKey="score" radius={[4, 4, 0, 0]} barSize={24}>
+                                    {Object.entries(aggregateResult?.categoryScores || {}).map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={getScoreColor(entry[1].percentage)} />
+                                    ))}
+                                </Bar>
                             </BarChart>
                         </ResponsiveContainer>
                       </div>
@@ -248,36 +258,40 @@ const AdminDashboard: React.FC = () => {
                      
                      return (
                          <div key={tf} className="animus-action-group">
-                             <div className="animus-action-header">{tf}</div>
-                             {actions.slice(0, 4).map((act, i) => (
+                             <div className="animus-action-header flex justify-between items-center">
+                                <span>{tf}</span>
+                                <span className="text-[7pt] bg-slate-100 px-2 rounded-full text-slate-500 font-normal normal-case">
+                                    {tf.includes('Mês') ? 'Prioridade Alta' : 'Estratégico'}
+                                </span>
+                             </div>
+                             {actions.slice(0, 5).map((act, i) => (
                                  <div key={i} className="animus-action-card">
-                                     <div className="flex items-start gap-2">
-                                         <span className="text-sm pt-0.5">{getActionIcon(act.title)}</span>
+                                     <div className="flex items-start gap-2.5">
+                                         <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-xs shadow-sm border border-slate-100 shrink-0">
+                                            {getActionIcon(act.title)}
+                                         </div>
                                          <div>
-                                             <div className="font-bold text-[9pt] text-slate-800 leading-tight">{act.title}</div>
-                                             <div className="text-[8pt] text-slate-500 leading-tight mt-0.5">{act.description}</div>
+                                             <div className="font-bold text-[9pt] text-slate-800 leading-tight mb-0.5">{act.title}</div>
+                                             <div className="text-[8pt] text-slate-500 leading-tight">{act.description}</div>
                                          </div>
                                      </div>
                                  </div>
                              ))}
-                             {actions.length > 4 && (
-                                 <div className="text-[8pt] text-center text-slate-400 italic mt-1">+ {actions.length - 4} ações complementares</div>
-                             )}
                          </div>
                      )
                  })}
              </div>
 
-             <div className="mt-6">
+             <div className="mt-4 break-inside-avoid">
                  <h2 className="animus-section-title">3. Visão de Longo Prazo (5 Anos)</h2>
-                 <div className="animus-action-card bg-slate-50 border-none p-4">
-                     <div className="grid grid-cols-2 gap-4">
-                        {(groupedAggregateActions['5 Anos'] || []).slice(0, 4).map((act, i) => (
-                             <div key={i} className="flex items-start gap-2">
-                                 <span className="text-sm">🚀</span>
+                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 break-inside-avoid">
+                     <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                        {(groupedAggregateActions['5 Anos'] || []).slice(0, 6).map((act, i) => (
+                             <div key={i} className="flex items-start gap-3">
+                                 <span className="text-sm mt-0.5">🚀</span>
                                  <div>
                                      <div className="font-bold text-[9pt] text-indigo-900 leading-tight">{act.title}</div>
-                                     <div className="text-[8pt] text-slate-500 leading-tight">{act.description}</div>
+                                     <div className="text-[8pt] text-slate-500 leading-tight mt-0.5">{act.description}</div>
                                  </div>
                              </div>
                         ))}
@@ -287,8 +301,8 @@ const AdminDashboard: React.FC = () => {
           </div>
 
           <div className="print-footer">
-              <span className="font-bold uppercase tracking-widest text-[7pt]">Relatório ESG Municipal</span>
-              <span className="text-[7pt]">Confidencial • Uso Interno</span>
+              <span className="font-bold uppercase tracking-widest text-[7pt] text-slate-400">Relatório ESG Municipal</span>
+              <span className="text-[7pt] text-slate-400">Confidencial • Uso Interno</span>
           </div>
       </div>
     </div>

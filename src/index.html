@@ -93,8 +93,12 @@
         .print-page-content {
             padding: 15mm 15mm 15mm 15mm; /* Top/Bottom 25px approx, Sides 20px approx */
             width: 210mm;
-            max-width: 210mm;
+            /* Allow height to flow but ensure min height fills page visually if needed */
+            min-height: 297mm; 
             box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            position: relative;
         }
 
         .animus-section-title {
@@ -102,8 +106,8 @@
             font-size: 16pt;
             font-weight: 700;
             color: #1e1b4b; /* Indigo 950 */
-            margin-top: 20px;
-            margin-bottom: 15px;
+            margin-top: 15px;
+            margin-bottom: 12px;
             display: flex;
             align-items: center;
             break-after: avoid;
@@ -114,7 +118,7 @@
             display: block;
             width: 6px;
             height: 24px;
-            background: #6366f1; /* Accent Color */
+            background: linear-gradient(to bottom, #6366f1, #a855f7); /* Vibrant Gradient */
             margin-right: 12px;
             border-radius: 2px;
         }
@@ -149,7 +153,7 @@
 
         /* --- ACTION PLAN GRID --- */
         .animus-action-group {
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             break-inside: avoid;
         }
         
@@ -159,23 +163,27 @@
             font-weight: 700;
             text-transform: uppercase;
             color: #1e1b4b;
-            border-bottom: 1px solid #cbd5e1;
+            border-bottom: 2px solid #e2e8f0;
             padding-bottom: 4px;
             margin-bottom: 8px;
         }
 
         .animus-action-card {
             background: #f8fafc;
-            border-left: 3px solid #6366f1;
+            border: 1px solid #e2e8f0;
+            /* border-left: 3px solid #6366f1; handled in component for varying colors */
             padding: 8px 10px;
             margin-bottom: 6px;
             break-inside: avoid;
+            border-radius: 4px;
         }
         
         .animus-grid-actions {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 15px;
+            /* Distribute content evenly */
+            align-content: start; 
         }
 
         /* --- FOOTER --- */
@@ -196,7 +204,7 @@
         }
         
         /* Helpers */
-        .chart-container { height: 180px !important; width: 100% !important; }
+        .chart-container { height: 160px !important; width: 100% !important; }
         .no-print { display: none !important; }
         .shadow-sm, .shadow-lg { box-shadow: none !important; }
         .rounded-2xl { border-radius: 4px !important; }
