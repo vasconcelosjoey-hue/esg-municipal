@@ -127,14 +127,12 @@ const AdminDashboard: React.FC = () => {
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                          {Object.values(detailedEvidences)
                              .map((ev: Evidence, idx) => (
-                                 <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                     <p className="text-[10px] font-bold uppercase text-slate-400 mb-2">Questão ID: {ev.questionId}</p>
-                                     {ev.comment && (
-                                         <div className="mb-2 p-2 bg-white rounded border border-slate-100 text-xs italic text-slate-600">
-                                             "{ev.comment}"
-                                         </div>
-                                     )}
-                                     {ev.fileUrl && <AdminEvidenceViewer evidence={ev} />}
+                                 <div key={idx} className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col">
+                                     <div className="flex justify-between items-start mb-3">
+                                        <span className="text-[10px] font-black uppercase text-white bg-slate-400 px-2 py-0.5 rounded">ID: {ev.questionId}</span>
+                                        <span className="text-[10px] text-slate-400">{new Date(ev.timestamp).toLocaleDateString('pt-BR')}</span>
+                                     </div>
+                                     <AdminEvidenceViewer evidence={ev} />
                                  </div>
                              ))
                          }

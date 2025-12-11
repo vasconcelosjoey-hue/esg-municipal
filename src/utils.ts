@@ -146,6 +146,20 @@ export const saveAnswerToFirestore = async (uid: string, questionId: string, val
 
 // --- EVIDENCE MANAGEMENT ---
 
+export const saveEvidenceComment = async (uid: string, questionId: string, comment: string) => {
+  if (!uid) return;
+  try {
+    const docRef = doc(db, 'submissions', uid, 'respostas', questionId);
+    // Use setDoc with merge: true to avoid overwriting existing file data
+    await setDoc(docRef, {
+      comentario: comment,
+      atualizadoEm: serverTimestamp()
+    }, { merge: true });
+  } catch (e) {
+    console.error("Erro ao salvar comentário:", e);
+  }
+};
+
 export const uploadEvidence = async (
   uid: string, 
   questionId: string, 
@@ -275,8 +289,8 @@ export const fetchSubmissionDetails = async (uid: string): Promise<EvidencesStat
             const data = doc.data();
             const qId = doc.id;
 
-            // Only care about entries that have evidence
-            if (data.evidenciaPath) {
+            // Capture entries that have either a file OR a comment
+            if (data.evidenciaPath || data.comentario) {
                 evidences[qId] = {
                     questionId: qId,
                     comment: data.comentario || '',
@@ -286,13 +300,6 @@ export const fetchSubmissionDetails = async (uid: string): Promise<EvidencesStat
                     fileSize: data.evidenciaTamanho,
                     storagePath: data.evidenciaPath,
                     timestamp: data.atualizadoEm?.toDate?.().toISOString() || new Date().toISOString()
-                };
-            } else if (data.comentario) {
-                // Also capture comments without files
-                evidences[qId] = {
-                    questionId: qId,
-                    comment: data.comentario,
-                    timestamp: new Date().toISOString()
                 };
             }
         });
@@ -318,8 +325,8 @@ export const fetchRespondentProgress = async (uid: string): Promise<{ answers: A
                 answers[qId] = data.resposta as AnswerValue;
             }
             
-            // Reconstruct evidence object even if URL is missing (respondent can't read)
-            if (data.evidenciaPath) {
+            // Reconstruct evidence object
+            if (data.evidenciaPath || data.comentario) {
                 evidences[qId] = {
                     questionId: qId,
                     comment: data.comentario || '',
@@ -329,12 +336,6 @@ export const fetchRespondentProgress = async (uid: string): Promise<{ answers: A
                     fileSize: data.evidenciaTamanho,
                     storagePath: data.evidenciaPath,
                     timestamp: data.atualizadoEm?.toDate?.().toISOString() || new Date().toISOString()
-                };
-            } else if (data.comentario) {
-                evidences[qId] = {
-                    questionId: qId,
-                    comment: data.comentario,
-                    timestamp: new Date().toISOString()
                 };
             }
         });

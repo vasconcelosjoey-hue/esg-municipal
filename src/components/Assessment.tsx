@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { CATEGORIES } from '../constants';
 import { AnswerValue, AnswersState, EvidencesState, RespondentData } from '../types';
-import { saveDraft, saveAnswerToFirestore, fetchRespondentProgress } from '../utils';
+import { saveDraft, saveAnswerToFirestore, fetchRespondentProgress, saveEvidenceComment } from '../utils';
 import EvidenceUploader from './EvidenceUploader';
 
 interface Props {
@@ -18,7 +18,6 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
   const [missingIds, setMissingIds] = useState<string[]>([]);
   const [expandedEvidenceId, setExpandedEvidenceId] = useState<string | null>(null);
   const [autosaveStatus, setAutosaveStatus] = useState<'saved' | 'saving'>('saved');
-  const [previewEvidence, setPreviewEvidence] = useState<{ url: string, type: string, name: string } | null>(null);
 
   const allQuestionIds = useRef<string[]>(CATEGORIES.flatMap(c => c.questions.map(q => q.id)));
 
@@ -77,8 +76,16 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
   };
 
   const handleCommentChange = (questionId: string, comment: string) => {
+      // Update Local State immediately
       const currentEvidence = evidences[questionId] || { questionId, timestamp: new Date().toISOString() };
       onEvidenceChange(questionId, { ...currentEvidence, comment });
+  };
+  
+  const handleCommentBlur = (questionId: string, comment: string) => {
+      // Trigger Cloud Autosave on Blur
+      if (respondent.uid) {
+          saveEvidenceComment(respondent.uid, questionId, comment);
+      }
   };
 
   const toggleEvidence = (id: string) => {
@@ -169,7 +176,7 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
             {category.questions.map((q) => {
               const isMissing = missingIds.includes(q.id) && !answers[q.id];
               globalQuestionCounter++;
-              const hasEvidence = evidences[q.id] && evidences[q.id].fileName;
+              const hasEvidence = evidences[q.id] && (evidences[q.id].fileName || evidences[q.id].comment);
               const evidenceData = evidences[q.id];
               const isExpanded = expandedEvidenceId === q.id;
 
@@ -192,7 +199,7 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
                                 {hasEvidence ? (
                                     <>
                                         <span className="flex items-center justify-center w-5 h-5 bg-emerald-600 text-white rounded-full text-[10px]">✔</span>
-                                        <span>Evidência Anexada</span>
+                                        <span>Evidência / Comentário</span>
                                     </>
                                 ) : (
                                     <>
@@ -235,6 +242,7 @@ const Assessment: React.FC<Props> = ({ answers, evidences, respondent, onAnswerC
                               placeholder="Descreva a evidência ou justifique a resposta..."
                               value={evidences[q.id]?.comment || ''}
                               onChange={(e) => handleCommentChange(q.id, e.target.value)}
+                              onBlur={(e) => handleCommentBlur(q.id, e.target.value)}
                           />
                           
                           <div className="border-t border-slate-200 pt-4">
