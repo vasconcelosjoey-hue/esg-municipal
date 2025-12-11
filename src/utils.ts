@@ -1,14 +1,14 @@
 import { AnswersState, AnswerValue, AssessmentResult, MaturityLevel, ActionPlanItem, CategoryData, Submission, RespondentData, TimeFrame, Evidence, EvidencesState } from './types';
 import { CATEGORIES } from './constants';
 import { db, storage, auth } from './firebase';
-import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, writeBatch, setDoc, serverTimestamp, getDoc, updateDoc, deleteField } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, deleteDoc, doc, writeBatch, setDoc, serverTimestamp, getDoc, updateDoc, deleteField } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 
 const COLLECTION_NAME = "submissions";
 const DRAFT_KEY = "esg_diagnostic_draft";
 
-// --- AUTH SYSTEM ---
+// --- 1. AUTH SYSTEM ---
 
 export const loginUser = async (name: string, pin: string) => {
   const cleanName = name.trim().toLowerCase().replace(/\s+/g, '');
@@ -22,6 +22,7 @@ export const loginUser = async (name: string, pin: string) => {
     if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
       try {
         const newUserCredential = await createUserWithEmailAndPassword(auth, email, password);
+        // Save user profile separately for reference
         await setDoc(doc(db, 'users', newUserCredential.user.uid), {
           nome: name,
           senha: pin,
@@ -94,7 +95,7 @@ export const calculateScore = (answers: AnswersState): AssessmentResult => {
   return { totalScore, maxScore, percentage, level, categoryScores };
 };
 
-// --- DRAFT & AUTOSAVE SYSTEM ---
+// --- DRAFT & LOCAL STORAGE ---
 
 export interface DraftData {
   respondent: RespondentData;
@@ -129,28 +130,32 @@ export const clearLocalProgress = () => {
   localStorage.removeItem(DRAFT_KEY);
 };
 
-// --- REALTIME FIRESTORE SAVING ---
+// --- 2. REALTIME FIRESTORE SAVING (ANSWERS & COMMENTS) ---
 
-export const saveAnswerToFirestore = async (uid: string, questionId: string, value: AnswerValue) => {
+export const saveAnswerToFirestore = async (uid: string, questionId: string, value: AnswerValue, comment?: string) => {
   if (!uid) return;
   try {
     const docRef = doc(db, 'submissions', uid, 'respostas', questionId);
-    await setDoc(docRef, {
+    
+    const payload: any = {
       resposta: value,
       timestamp: serverTimestamp()
-    }, { merge: true });
+    };
+
+    if (comment !== undefined) {
+      payload.comentario = comment;
+    }
+
+    await setDoc(docRef, payload, { merge: true });
   } catch (e) {
     console.error("Erro no autosave nuvem:", e);
   }
 };
 
-// --- EVIDENCE MANAGEMENT ---
-
 export const saveEvidenceComment = async (uid: string, questionId: string, comment: string) => {
   if (!uid) return;
   try {
     const docRef = doc(db, 'submissions', uid, 'respostas', questionId);
-    // Use setDoc with merge: true to avoid overwriting existing file data
     await setDoc(docRef, {
       comentario: comment,
       atualizadoEm: serverTimestamp()
@@ -159,6 +164,8 @@ export const saveEvidenceComment = async (uid: string, questionId: string, comme
     console.error("Erro ao salvar comentário:", e);
   }
 };
+
+// --- 3. UPLOAD EVIDENCE ---
 
 export const uploadEvidence = async (
   uid: string, 
@@ -169,7 +176,7 @@ export const uploadEvidence = async (
   
   if (!uid) throw new Error("Usuário não identificado.");
 
-  // 1. Validation
+  // Validation
   const MAX_SIZE = 1 * 1024 * 1024; // 1MB
   const ALLOWED_TYPES = [
       'image/jpeg', 
@@ -183,7 +190,7 @@ export const uploadEvidence = async (
   if (file.size > MAX_SIZE) throw new Error("Arquivo excede o limite de 1MB.");
   if (!ALLOWED_TYPES.includes(file.type)) throw new Error("Formato inválido. Use PDF, JPG, PNG, DOCX ou XLSX.");
 
-  // 2. Check if exists in Firestore (One evidence per question)
+  // Check Existence
   const answerDocRef = doc(db, 'submissions', uid, 'respostas', questionId);
   const docSnap = await getDoc(answerDocRef);
   
@@ -191,16 +198,15 @@ export const uploadEvidence = async (
       throw new Error("Já existe uma evidência. Remova a anterior antes de enviar.");
   }
 
-  // 3. Upload Path: evidencias/{uid}/{questionId}/{filename}
+  // Upload Path
   const storagePath = `evidencias/${uid}/${questionId}/${file.name}`;
   const storageRef = ref(storage, storagePath);
 
   try {
-      // 4. Perform Upload
+      // Perform Upload
       await uploadBytes(storageRef, file);
       
-      // Note: We attempt to get the URL, but if the respondent doesn't have READ permission
-      // (which is secure), this might fail. We proceed anyway because the Admin can read it later using the path.
+      // Try to get URL (might fail if read rules are strict for respondent)
       let url = '';
       try {
           url = await getDownloadURL(storageRef);
@@ -219,10 +225,10 @@ export const uploadEvidence = async (
           timestamp: new Date().toISOString()
       };
 
-      // 5. Save Metadata to Firestore
+      // Save Metadata to Firestore Subcollection
       await setDoc(answerDocRef, {
           evidenciaPath: storagePath,
-          evidenciaUrl: url, // Might be empty string, OK.
+          evidenciaUrl: url, 
           evidenciaNome: file.name,
           evidenciaTipo: file.type,
           evidenciaTamanho: file.size,
@@ -240,15 +246,17 @@ export const uploadEvidence = async (
   }
 };
 
+// --- 4. DELETE EVIDENCE ---
+
 export const deleteEvidence = async (uid: string, questionId: string, storagePath: string) => {
     if(!uid || !storagePath) return;
 
     try {
-        // 1. Delete from Storage
+        // Delete from Storage
         const storageRef = ref(storage, storagePath);
         await deleteObject(storageRef);
 
-        // 2. Update Firestore (Remove fields)
+        // Update Firestore (Remove evidence fields)
         const answerDocRef = doc(db, 'submissions', uid, 'respostas', questionId);
         await updateDoc(answerDocRef, {
             evidenciaPath: deleteField(),
@@ -261,8 +269,8 @@ export const deleteEvidence = async (uid: string, questionId: string, storagePat
         
     } catch (e: any) {
         console.error("Erro ao deletar evidência:", e);
-        // Be resilient: if file not found in storage, still clear firestore
         if (e.code === 'storage/object-not-found') {
+             // If file missing in storage, ensure firestore is cleaned up anyway
              const answerDocRef = doc(db, 'submissions', uid, 'respostas', questionId);
              await updateDoc(answerDocRef, {
                 evidenciaPath: deleteField(),
@@ -278,75 +286,7 @@ export const deleteEvidence = async (uid: string, questionId: string, storagePat
     }
 };
 
-export const fetchSubmissionDetails = async (uid: string): Promise<EvidencesState> => {
-    const evidences: EvidencesState = {};
-    try {
-        // Look into the subcollection: submissions/{uid}/respostas
-        const q = query(collection(db, 'submissions', uid, 'respostas'));
-        const snapshot = await getDocs(q);
-
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            const qId = doc.id;
-
-            // Capture entries that have either a file OR a comment
-            if (data.evidenciaPath || data.comentario) {
-                evidences[qId] = {
-                    questionId: qId,
-                    comment: data.comentario || '',
-                    fileUrl: data.evidenciaUrl || '',
-                    fileName: data.evidenciaNome,
-                    fileType: data.evidenciaTipo,
-                    fileSize: data.evidenciaTamanho,
-                    storagePath: data.evidenciaPath,
-                    timestamp: data.atualizadoEm?.toDate?.().toISOString() || new Date().toISOString()
-                };
-            }
-        });
-    } catch (e) {
-        console.error("Error fetching submission details:", e);
-    }
-    return evidences;
-};
-
-export const fetchRespondentProgress = async (uid: string): Promise<{ answers: AnswersState, evidences: EvidencesState }> => {
-    const answers: AnswersState = {};
-    const evidences: EvidencesState = {};
-    
-    try {
-        const q = query(collection(db, 'submissions', uid, 'respostas'));
-        const snapshot = await getDocs(q);
-        
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            const qId = doc.id;
-            
-            if (data.resposta) {
-                answers[qId] = data.resposta as AnswerValue;
-            }
-            
-            // Reconstruct evidence object
-            if (data.evidenciaPath || data.comentario) {
-                evidences[qId] = {
-                    questionId: qId,
-                    comment: data.comentario || '',
-                    fileUrl: data.evidenciaUrl || '', 
-                    fileName: data.evidenciaNome,
-                    fileType: data.evidenciaTipo,
-                    fileSize: data.evidenciaTamanho,
-                    storagePath: data.evidenciaPath,
-                    timestamp: data.atualizadoEm?.toDate?.().toISOString() || new Date().toISOString()
-                };
-            }
-        });
-    } catch (e) {
-        console.error("Erro ao recuperar progresso:", e);
-    }
-    
-    return { answers, evidences };
-};
-
-// --- SUBMISSION ---
+// --- 5. SAVE SUBMISSION (FINAL SNAPSHOT) ---
 
 export interface SaveResult {
   savedToCloud: boolean;
@@ -367,6 +307,7 @@ export const saveSubmission = async (
       return { savedToCloud: false, savedLocal: false, error: "ID do usuário inválido (UID)." };
   }
   
+  // We save a snapshot of everything in the main doc for easy listing/stats
   const submission = {
     id: docId,
     timestamp: new Date().toISOString(),
@@ -386,8 +327,11 @@ export const saveSubmission = async (
   }
 };
 
+// --- 6. FETCH SUBMISSIONS (ADMIN LIST) ---
+
 export const getSubmissions = async (): Promise<Submission[]> => {
   try {
+    // Only fetches the parent documents for the list view
     const q = query(collection(db, COLLECTION_NAME), orderBy("timestamp", "desc"));
     const snap = await getDocs(q);
 
@@ -400,6 +344,109 @@ export const getSubmissions = async (): Promise<Submission[]> => {
     return [];
   }
 };
+
+// Alias for semantic clarity
+export const fetchSubmissions = getSubmissions;
+
+// --- 7. FETCH SUBMISSION DETAILS (ADMIN DETAIL - FULL RECONSTRUCTION) ---
+
+export const fetchSubmissionDetails = async (uid: string): Promise<{
+    respondent: RespondentData;
+    result: AssessmentResult;
+    answers: AnswersState;
+    evidences: EvidencesState;
+} | null> => {
+    try {
+        // 1. Fetch Parent Doc
+        const parentDocRef = doc(db, COLLECTION_NAME, uid);
+        const parentSnap = await getDoc(parentDocRef);
+
+        if (!parentSnap.exists()) return null;
+
+        const parentData = parentSnap.data() as Submission;
+        
+        const reconstructedAnswers: AnswersState = {};
+        const reconstructedEvidences: EvidencesState = {};
+
+        // 2. Fetch Subcollection 'respostas'
+        const q = query(collection(db, 'submissions', uid, 'respostas'));
+        const snapshot = await getDocs(q);
+
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const qId = doc.id;
+
+            // Reconstruct Answers
+            if (data.resposta) {
+                reconstructedAnswers[qId] = data.resposta as AnswerValue;
+            }
+
+            // Reconstruct Evidence object if it has file OR comment
+            if (data.evidenciaPath || data.comentario) {
+                reconstructedEvidences[qId] = {
+                    questionId: qId,
+                    comment: data.comentario || '',
+                    fileUrl: data.evidenciaUrl || '',
+                    fileName: data.evidenciaNome,
+                    fileType: data.evidenciaTipo,
+                    fileSize: data.evidenciaTamanho,
+                    storagePath: data.evidenciaPath,
+                    timestamp: data.atualizadoEm?.toDate?.().toISOString() || new Date().toISOString()
+                };
+            }
+        });
+
+        return {
+            respondent: parentData.respondent,
+            result: parentData.result,
+            answers: reconstructedAnswers,
+            evidences: reconstructedEvidences
+        };
+
+    } catch (e) {
+        console.error("Error fetching submission details:", e);
+        return null;
+    }
+};
+
+// Helper to get full state (answers + evidences) for resuming session
+export const fetchRespondentProgress = async (uid: string): Promise<{ answers: AnswersState, evidences: EvidencesState }> => {
+    const answers: AnswersState = {};
+    const evidences: EvidencesState = {};
+    
+    try {
+        const q = query(collection(db, 'submissions', uid, 'respostas'));
+        const snapshot = await getDocs(q);
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const qId = doc.id;
+            
+            if (data.resposta) {
+                answers[qId] = data.resposta as AnswerValue;
+            }
+            
+            if (data.evidenciaPath || data.comentario) {
+                evidences[qId] = {
+                    questionId: qId,
+                    comment: data.comentario || '',
+                    fileUrl: data.evidenciaUrl || '', 
+                    fileName: data.evidenciaNome,
+                    fileType: data.evidenciaTipo,
+                    fileSize: data.evidenciaTamanho,
+                    storagePath: data.evidenciaPath,
+                    timestamp: data.atualizadoEm?.toDate?.().toISOString() || new Date().toISOString()
+                };
+            }
+        });
+    } catch (e) {
+        console.error("Erro ao recuperar progresso:", e);
+    }
+    
+    return { answers, evidences };
+};
+
+// --- UTILS FOR DELETE ---
 
 export const deleteSubmission = async (id: string): Promise<boolean> => {
   try {
@@ -424,13 +471,13 @@ export const clearAllSubmissions = async (): Promise<boolean> => {
   }
 };
 
-// ... (Rest of Action Plan Logic remains unchanged) ...
+// --- ACTION PLAN GENERATOR ---
+
 type ActionDefinition = { title: string; desc: string; priority: 'Alta' | 'Média' | 'Baixa' };
 type MaturityActions = Record<'CRITICAL' | 'REGULAR' | 'EXCELLENT', Record<TimeFrame, ActionDefinition>>;
 
-// Define unique actions for each category to avoid repetition
+// Define unique actions for each category
 const CATEGORY_ACTIONS: Record<string, MaturityActions> = {
-  // ... (keeping existing categories mapping logic same as before to save space in this output block if unchanged, assume same constant) ...
   'legislacao': {
     CRITICAL: {
       '1 Mês': { title: 'Diagnóstico Jurídico', desc: 'Levantar todas as leis ambientais municipais faltantes ou obsoletas.', priority: 'Alta' },
