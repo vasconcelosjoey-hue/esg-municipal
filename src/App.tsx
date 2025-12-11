@@ -5,6 +5,7 @@ import { calculateScore, saveSubmission, loadDraft, clearLocalProgress, loginUse
 import Assessment from './components/Assessment';
 import Dashboard from './components/Dashboard'; 
 import AdminDashboard from './components/AdminDashboard';
+import LogoutButton from './components/LogoutButton';
 import { auth } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -380,6 +381,7 @@ const App: React.FC = () => {
 
             {/* Buttons Section */}
             <div className="flex items-center gap-2 shrink-0">
+              {respondentData && <LogoutButton />}
               <button 
                 onClick={handleStartAssessment}
                 className={`px-3 py-2 md:px-4 md:py-2 rounded-full text-xs md:text-sm font-bold transition-all shadow-sm hover:shadow-md whitespace-nowrap ${view === View.ASSESSMENT ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-700 hover:bg-emerald-50 border border-emerald-100'}`}

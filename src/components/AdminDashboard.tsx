@@ -4,6 +4,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, 
 import { CATEGORIES } from '../constants';
 import { Submission, TimeFrame, ActionPlanItem, AssessmentResult } from '../types';
 import Dashboard from './Dashboard';
+import AdminEvidenceViewer from './AdminEvidenceViewer';
 
 const AdminDashboard: React.FC = () => {
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
@@ -92,12 +93,6 @@ const AdminDashboard: React.FC = () => {
       return '⚡';
   };
 
-  const getScoreColor = (score: number) => {
-      if (score < 40) return '#ef4444'; // Red
-      if (score < 80) return '#f59e0b'; // Amber
-      return '#10b981'; // Emerald
-  };
-
   if (loading) return <div className="p-10 text-center">Carregando...</div>;
   
   // --- DETAIL VIEW ---
@@ -110,6 +105,24 @@ const AdminDashboard: React.FC = () => {
                 </button>
              </div>
              
+             {/* Evidence Section for Admin */}
+             {selectedSubmission.evidences && Object.keys(selectedSubmission.evidences).length > 0 && (
+                 <div className="no-print mx-4 md:mx-0 mb-8 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                     <h3 className="font-bold text-lg mb-4 text-slate-800">📂 Evidências Anexadas</h3>
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                         {Object.values(selectedSubmission.evidences)
+                             .filter(ev => ev.fileUrl)
+                             .map((ev, idx) => (
+                                 <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                     <p className="text-[10px] font-bold uppercase text-slate-400 mb-2">Questão ID: {ev.questionId}</p>
+                                     <AdminEvidenceViewer evidence={ev} />
+                                 </div>
+                             ))
+                         }
+                     </div>
+                 </div>
+             )}
+
              <Dashboard result={selectedSubmission.result} respondentData={selectedSubmission.respondent} evidences={selectedSubmission.evidences} />
         </div>
       );
@@ -117,6 +130,7 @@ const AdminDashboard: React.FC = () => {
 
   if (submissions.length === 0) return <div className="p-10 text-center">Sem dados. <button onClick={handleRefresh}>Atualizar</button></div>;
 
+  // ... (Rest of dashboard remains same)
   return (
     <div className="animate-fade-in pb-20 print:pb-0">
       

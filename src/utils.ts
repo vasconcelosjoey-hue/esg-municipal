@@ -3,7 +3,7 @@ import { CATEGORIES } from './constants';
 import { db, storage, auth } from './firebase';
 import { collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, writeBatch, setDoc, serverTimestamp, getDoc, updateDoc, deleteField } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 
 const COLLECTION_NAME = "submissions";
 const DRAFT_KEY = "esg_diagnostic_draft";
@@ -36,6 +36,21 @@ export const loginUser = async (name: string, pin: string) => {
       throw new Error("Erro no login: " + error.message);
     }
   }
+};
+
+export const logoutUser = async () => {
+  try {
+    await signOut(auth);
+  } catch (e) {
+    console.error("Erro ao desconectar:", e);
+  }
+
+  localStorage.removeItem("esg-progress");
+  localStorage.removeItem("esg-uid");
+  localStorage.removeItem("esg-respondent");
+  clearLocalProgress();
+
+  window.location.href = "/";
 };
 
 // --- CORE CALCULATION LOGIC ---
@@ -119,6 +134,7 @@ export const clearLocalProgress = () => {
 export const saveAnswerToFirestore = async (uid: string, questionId: string, value: AnswerValue) => {
   if (!uid) return;
   try {
+    // Saves to specific user subcollection: submissions/{uid}/respostas/{questionId}
     const docRef = doc(db, 'submissions', uid, 'respostas', questionId);
     await setDoc(docRef, {
       resposta: value,
@@ -141,50 +157,66 @@ export const uploadEvidence = async (
   if (!uid) throw new Error("Usuário não identificado.");
 
   // 1. Validation
-  const MAX_SIZE = 1024 * 1024; // 1MB
-  const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'application/pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+  const MAX_SIZE = 1 * 1024 * 1024; // 1MB exact
+  const ALLOWED_TYPES = [
+      'image/jpeg', 
+      'image/jpg', 
+      'image/png', 
+      'application/pdf', 
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document' // docx
+  ];
   
-  if (file.size > MAX_SIZE) throw new Error("Arquivo excede 1MB.");
-  if (!ALLOWED_TYPES.includes(file.type)) throw new Error("Formato inválido. Use JPG, PNG, PDF, DOCX ou XLSX.");
+  if (file.size > MAX_SIZE) throw new Error("Arquivo excede o limite de 1MB.");
+  if (!ALLOWED_TYPES.includes(file.type)) throw new Error("Formato inválido. Use PDF, JPG, PNG, DOCX ou XLSX.");
 
-  // 2. Check if exists in Firestore
+  // 2. Check if exists in Firestore (One evidence per question)
   const answerDocRef = doc(db, 'submissions', uid, 'respostas', questionId);
   const docSnap = await getDoc(answerDocRef);
   
   if (docSnap.exists() && docSnap.data().evidenciaPath) {
-      throw new Error("Já existe uma evidência. Apague antes de anexar outra.");
+      throw new Error("Já existe uma evidência. Remova a anterior antes de enviar.");
   }
 
   // 3. Upload Path: evidencias/{uid}/{questionId}/{filename}
   const storagePath = `evidencias/${uid}/${questionId}/${file.name}`;
   const storageRef = ref(storage, storagePath);
 
-  // 4. Perform Upload
-  await uploadBytes(storageRef, file);
-  const url = await getDownloadURL(storageRef);
+  try {
+      // 4. Perform Upload
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
 
-  const metadata: Partial<Evidence> = {
-      fileName: file.name,
-      fileType: file.type,
-      fileSize: file.size,
-      fileUrl: url,
-      storagePath: storagePath,
-      comment: comment || '',
-      questionId: questionId,
-      timestamp: new Date().toISOString()
-  };
+      const metadata: Partial<Evidence> = {
+          fileName: file.name,
+          fileType: file.type,
+          fileSize: file.size,
+          fileUrl: url,
+          storagePath: storagePath,
+          comment: comment || '',
+          questionId: questionId,
+          timestamp: new Date().toISOString()
+      };
 
-  // 5. Save Metadata to Firestore Answer Document
-  await setDoc(answerDocRef, {
-      evidenciaPath: storagePath,
-      evidenciaUrl: url,
-      evidenciaNome: file.name,
-      evidenciaTipo: file.type,
-      comentario: comment || '',
-      atualizadoEm: serverTimestamp()
-  }, { merge: true });
+      // 5. Save Metadata to Firestore Answer Document
+      await setDoc(answerDocRef, {
+          evidenciaPath: storagePath,
+          evidenciaUrl: url,
+          evidenciaNome: file.name,
+          evidenciaTipo: file.type,
+          evidenciaTamanho: file.size,
+          comentario: comment || '',
+          atualizadoEm: serverTimestamp()
+      }, { merge: true });
 
-  return { url, metadata };
+      return { url, metadata };
+  } catch (error: any) {
+      console.error("Upload error:", error);
+      if (error.code === 'storage/unauthorized') {
+          throw new Error("Permissão negada. Verifique se está logado.");
+      }
+      throw new Error("Falha no upload: " + error.message);
+  }
 };
 
 export const deleteEvidence = async (uid: string, questionId: string, storagePath: string) => {
@@ -195,32 +227,20 @@ export const deleteEvidence = async (uid: string, questionId: string, storagePat
         const storageRef = ref(storage, storagePath);
         await deleteObject(storageRef);
 
-        // 2. Update Firestore
+        // 2. Update Firestore (Remove fields)
         const answerDocRef = doc(db, 'submissions', uid, 'respostas', questionId);
         await updateDoc(answerDocRef, {
             evidenciaPath: deleteField(),
             evidenciaUrl: deleteField(),
             evidenciaNome: deleteField(),
             evidenciaTipo: deleteField(),
-            // We might keep the comment or delete it? Prompt implies removing evidence association.
-            // Let's keep comment if it was separate, but usually they go together.
-            // For now, let's remove the evidence fields to clear the badge.
+            evidenciaTamanho: deleteField(),
             atualizadoEm: serverTimestamp()
         });
         
-    } catch (e) {
+    } catch (e: any) {
         console.error("Erro ao deletar evidência:", e);
-        throw new Error("Falha ao remover arquivo.");
-    }
-};
-
-export const deleteEvidenceFile = async (fileUrl: string) => {
-    // Legacy helper kept for compatibility if needed, but deleteEvidence is preferred
-    try {
-        const storageRef = ref(storage, fileUrl);
-        await deleteObject(storageRef);
-    } catch (e) {
-        console.warn("Could not delete file from storage", e);
+        throw new Error("Falha ao remover arquivo. " + e.message);
     }
 };
 
@@ -247,11 +267,11 @@ export const fetchRespondentProgress = async (uid: string): Promise<{ answers: A
                     fileUrl: data.evidenciaUrl,
                     fileName: data.evidenciaNome,
                     fileType: data.evidenciaTipo,
+                    fileSize: data.evidenciaTamanho,
                     storagePath: data.evidenciaPath,
                     timestamp: data.atualizadoEm?.toDate?.().toISOString() || new Date().toISOString()
                 };
             } else if (data.comentario) {
-                // If only comment exists
                 evidences[qId] = {
                     questionId: qId,
                     comment: data.comentario,
@@ -281,7 +301,12 @@ export const saveSubmission = async (
     result: AssessmentResult
 ): Promise<SaveResult> => {
   
-  const docId = respondent.uid || crypto.randomUUID();
+  // Use UID as document ID to ensure 1:1 mapping and security rules compliance
+  const docId = respondent.uid;
+
+  if (!docId) {
+      return { savedToCloud: false, savedLocal: false, error: "ID do usuário inválido (UID)." };
+  }
   
   const submission = {
     id: docId,
@@ -293,7 +318,8 @@ export const saveSubmission = async (
   };
 
   try {
-    await setDoc(doc(db, COLLECTION_NAME, docId), submission);
+    // Save to submissions/{uid}
+    await setDoc(doc(db, COLLECTION_NAME, docId), submission, { merge: true });
     clearLocalProgress();
     return { savedToCloud: true, savedLocal: false };
   } catch (err: any) {
@@ -331,27 +357,16 @@ export const clearAllSubmissions = async (): Promise<boolean> => {
   try {
     const q = query(collection(db, COLLECTION_NAME));
     const snapshot = await getDocs(q);
-    
     const batch = writeBatch(db);
-    let count = 0;
-    
-    snapshot.docs.forEach((doc) => {
-      batch.delete(doc.ref);
-      count++;
-    });
-
-    if (count > 0) {
-       await batch.commit();
-    }
+    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
     return true;
   } catch (error) {
-    console.error("Erro ao limpar banco de dados:", error);
     return false;
   }
 };
 
-// --- INTELLIGENT ACTION PLAN GENERATOR (Category Specific) ---
-
+// ... (Rest of Action Plan Logic remains unchanged) ...
 type ActionDefinition = { title: string; desc: string; priority: 'Alta' | 'Média' | 'Baixa' };
 type MaturityActions = Record<'CRITICAL' | 'REGULAR' | 'EXCELLENT', Record<TimeFrame, ActionDefinition>>;
 
