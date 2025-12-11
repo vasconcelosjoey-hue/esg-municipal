@@ -35,16 +35,38 @@ const AdminDashboard: React.FC = () => {
   const handleRefresh = () => setRefreshKey(prev => prev + 1);
 
   const handleSelectSubmission = async (sub: Submission) => {
-      // 1. Set the main submission data first
+      // 1. Set preliminary state from list data to ensure immediate feedback
       setSelectedSubmission(sub);
-      setDetailedEvidences({}); // Clear previous details
+      setDetailedEvidences({}); 
 
-      // 2. Fetch the detailed evidence from subcollection
       try {
+          // 2. Fetch full details including subcollections
           const details = await fetchSubmissionDetails(sub.id);
-          setDetailedEvidences(details);
+
+          if (!details) {
+              // Safety: Clear state if not found
+              setSelectedSubmission(null);
+              setDetailedEvidences({});
+              return;
+          }
+
+          // 3. Update with fresh data from subcollections
+          // Construct full submission object ensuring no nulls
+          const updatedSubmission: Submission = {
+              id: sub.id,
+              timestamp: sub.timestamp,
+              respondent: details.respondent,
+              result: details.result,
+              answers: details.answers ?? {}
+          };
+
+          setSelectedSubmission(updatedSubmission);
+          setDetailedEvidences(details.evidences ?? {});
+
       } catch (e) {
           console.error("Erro ao carregar evidências:", e);
+          // Fallback: keep the list-based submission but with empty evidences
+          setDetailedEvidences({});
       }
   };
 
@@ -306,7 +328,6 @@ const AdminDashboard: React.FC = () => {
                          <th className="px-6 py-4 md:px-10 md:py-5 text-left text-xs md:text-sm font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Respondente</th>
                          <th className="px-6 py-4 md:px-10 md:py-5 text-left text-xs md:text-sm font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Setor</th>
                          <th className="px-6 py-4 md:px-10 md:py-5 text-left text-xs md:text-sm font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Data</th>
-                         <th className="px-6 py-4 md:px-10 md:py-5 text-left text-xs md:text-sm font-black text-slate-400 uppercase tracking-wider whitespace-nowrap">Maturidade</th>
                          <th className="px-6 py-4 md:px-10 md:py-5 text-left text-xs md:text-sm font-black text-slate-400 uppercase tracking-wider no-print whitespace-nowrap">Ação</th>
                      </tr>
                  </thead>
