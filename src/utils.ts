@@ -26,7 +26,7 @@ export const loginUser = async (name: string, pin: string) => {
         await setDoc(doc(db, 'users', newUserCredential.user.uid), {
           nome: name,
           senha: pin,
-          setor: 'Geral', // Default, updated via UI later usually
+          setor: 'Geral',
           uid: newUserCredential.user.uid,
           createdAt: serverTimestamp()
         });
@@ -55,7 +55,7 @@ export const logoutUser = async () => {
   window.location.href = "/";
 };
 
-// --- CORE CALCULATION LOGIC ---
+// --- CORE CALCULATION LOGIC (FIXED) ---
 
 export const calculateScore = (answers: AnswersState): AssessmentResult => {
   let totalScore = 0;
@@ -67,16 +67,26 @@ export const calculateScore = (answers: AnswersState): AssessmentResult => {
     let catMax = 0;
 
     cat.questions.forEach((q) => {
+      // FIX: Always increment maxScore for every question to avoid inflated scores on partial submissions.
+      // Unless we implement an explicit 'N/A' logic that subtracts from total.
+      // For now, NA acts as NO points, but counts towards total (penalizing lack of applicability if not strict).
+      // Or if you want NA to reduce the denominator:
       const answer = answers[q.id];
+      
+      if (answer === AnswerValue.NA) {
+          // If NA, we do NOT increment catMax (it doesn't apply)
+          return;
+      }
+
+      // Increment Max for YES, NO, PARTIAL, and UNDEFINED (Unanswered counts as 0/1)
+      catMax += 1;
+
       if (answer === AnswerValue.YES) {
         catScore += 1;
-        catMax += 1;
       } else if (answer === AnswerValue.PARTIAL) {
         catScore += 0.5;
-        catMax += 1;
-      } else if (answer === AnswerValue.NO) {
-        catMax += 1;
-      }
+      } 
+      // NO or Undefined adds 0 to score
     });
 
     const percentage = catMax > 0 ? (catScore / catMax) * 100 : 0;
@@ -131,7 +141,7 @@ export const clearLocalProgress = () => {
   localStorage.removeItem(DRAFT_KEY);
 };
 
-// --- 2. REALTIME FIRESTORE SAVING (ANSWERS & COMMENTS) ---
+// --- 2. REALTIME FIRESTORE SAVING ---
 
 export const saveAnswerToFirestore = async (uid: string, questionId: string, value: AnswerValue, comment?: string) => {
   if (!uid) return;
@@ -177,42 +187,30 @@ export const uploadEvidence = async (
   
   if (!uid) throw new Error("Usuário não identificado.");
 
-  // Validation
   const MAX_SIZE = 1 * 1024 * 1024; // 1MB
   const ALLOWED_TYPES = [
-      'image/jpeg', 
-      'image/jpg', 
-      'image/png', 
-      'application/pdf', 
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document' // docx
+      'image/jpeg', 'image/jpg', 'image/png', 'application/pdf', 
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   ];
   
   if (file.size > MAX_SIZE) throw new Error("Arquivo excede o limite de 1MB.");
   if (!ALLOWED_TYPES.includes(file.type)) throw new Error("Formato inválido. Use PDF, JPG, PNG, DOCX ou XLSX.");
 
-  // Check Existence
   const answerDocRef = doc(db, 'submissions', uid, 'respostas', questionId);
-  const docSnap = await getDoc(answerDocRef);
   
-  if (docSnap.exists() && docSnap.data().evidenciaPath) {
-      throw new Error("Já existe uma evidência. Remova a anterior antes de enviar.");
-  }
-
-  // Upload Path
-  const storagePath = `evidencias/${uid}/${questionId}/${file.name}`;
+  // Use a safer path structure
+  const storagePath = `evidencias/${uid}/${questionId}/${Date.now()}_${file.name}`;
   const storageRef = ref(storage, storagePath);
 
   try {
-      // Perform Upload
       await uploadBytes(storageRef, file);
       
-      // Try to get URL (might fail if read rules are strict for respondent)
       let url = '';
       try {
           url = await getDownloadURL(storageRef);
       } catch (readError) {
-          console.warn("Usuário não tem permissão de leitura (esperado). URL será gerada pelo Admin.");
+          console.warn("Usuário não tem permissão de leitura pública (esperado).");
       }
 
       const metadata: Partial<Evidence> = {
@@ -226,7 +224,6 @@ export const uploadEvidence = async (
           timestamp: new Date().toISOString()
       };
 
-      // Save Metadata to Firestore Subcollection
       await setDoc(answerDocRef, {
           evidenciaPath: storagePath,
           evidenciaUrl: url, 
@@ -240,24 +237,17 @@ export const uploadEvidence = async (
       return { metadata };
   } catch (error: any) {
       console.error("Upload error:", error);
-      if (error.code === 'storage/unauthorized') {
-          throw new Error("Permissão negada. Verifique se está logado.");
-      }
       throw new Error("Falha no upload: " + error.message);
   }
 };
-
-// --- 4. DELETE EVIDENCE ---
 
 export const deleteEvidence = async (uid: string, questionId: string, storagePath: string) => {
     if(!uid || !storagePath) return;
 
     try {
-        // Delete from Storage
         const storageRef = ref(storage, storagePath);
         await deleteObject(storageRef);
 
-        // Update Firestore (Remove evidence fields)
         const answerDocRef = doc(db, 'submissions', uid, 'respostas', questionId);
         await updateDoc(answerDocRef, {
             evidenciaPath: deleteField(),
@@ -271,7 +261,7 @@ export const deleteEvidence = async (uid: string, questionId: string, storagePat
     } catch (e: any) {
         console.error("Erro ao deletar evidência:", e);
         if (e.code === 'storage/object-not-found') {
-             // If file missing in storage, ensure firestore is cleaned up anyway
+             // Force cleanup if file is gone
              const answerDocRef = doc(db, 'submissions', uid, 'respostas', questionId);
              await updateDoc(answerDocRef, {
                 evidenciaPath: deleteField(),
@@ -287,7 +277,7 @@ export const deleteEvidence = async (uid: string, questionId: string, storagePat
     }
 };
 
-// --- 5. SAVE SUBMISSION (FINAL SNAPSHOT) ---
+// --- 5. SAVE SUBMISSION ---
 
 export interface SaveResult {
   savedToCloud: boolean;
@@ -308,18 +298,16 @@ export const saveSubmission = async (
       return { savedToCloud: false, savedLocal: false, error: "ID do usuário inválido (UID)." };
   }
   
-  // We save a snapshot of everything in the main doc for easy listing/stats
   const submission = {
     id: docId,
     timestamp: new Date().toISOString(),
     respondent,
-    result // Saving the result summary for quick listing
+    result
   };
 
   try {
     await setDoc(doc(db, COLLECTION_NAME, docId), submission, { merge: true });
     
-    // Also ensure user profile is updated in 'users' collection
     await setDoc(doc(db, 'users', docId), {
         nome: respondent.name,
         setor: respondent.sector,
@@ -335,40 +323,32 @@ export const saveSubmission = async (
   }
 };
 
-// --- 6. FETCH SUBMISSIONS (ADMIN LIST - ROBUST) ---
+// --- 6. FETCH SUBMISSIONS (ADMIN LIST - OPTIMIZED) ---
 
 export const fetchAllSubmissions = async (): Promise<Submission[]> => {
   try {
-    // 1. Get all submissions metadata
+    // FIX: Only fetch submissions collection. Do NOT fetch 'users' collection to avoid performance bottleneck.
+    // We rely on the denormalized 'respondent' data inside the submission document.
     const subQuery = query(collection(db, COLLECTION_NAME), orderBy("timestamp", "desc"));
     const subSnapshot = await getDocs(subQuery);
 
-    // 2. Get all users to join profile data
-    const usersSnapshot = await getDocs(collection(db, 'users'));
-    const usersMap: Record<string, any> = {};
-    usersSnapshot.forEach(doc => {
-        usersMap[doc.id] = doc.data();
-    });
-
-    // 3. Map and Join
     const submissions: Submission[] = subSnapshot.docs.map(doc => {
         const data = doc.data();
         const uid = doc.id;
-        const userProfile = usersMap[uid];
 
-        // Prefer data from 'users' collection if available, otherwise fallback to submission data
-        const respondent: RespondentData = {
+        // Fallback to data.respondent if available, otherwise unknown
+        const respondent: RespondentData = data.respondent || {
             uid: uid,
-            name: userProfile?.nome || data.respondent?.name || 'Desconhecido',
-            sector: userProfile?.setor || data.respondent?.sector || 'Geral'
+            name: 'Desconhecido',
+            sector: 'Não informado'
         };
 
         return {
             id: uid,
             timestamp: data.timestamp || new Date().toISOString(),
             respondent: respondent,
-            result: data.result, // Assuming result is stored in the parent doc by saveSubmission
-            answers: {} // Empty for list view, will be fetched in details
+            result: data.result,
+            answers: {} // Loaded on demand
         };
     });
 
@@ -379,10 +359,9 @@ export const fetchAllSubmissions = async (): Promise<Submission[]> => {
   }
 };
 
-// Alias for compatibility
 export const getSubmissions = fetchAllSubmissions;
 
-// --- 7. FETCH SUBMISSION DETAILS (ADMIN DETAIL - DEEP FETCH) ---
+// --- 7. FETCH SUBMISSION DETAILS (ROBUST) ---
 
 export const fetchSubmissionDetails = async (uid: string): Promise<{
     respondent: RespondentData;
@@ -391,23 +370,20 @@ export const fetchSubmissionDetails = async (uid: string): Promise<{
     evidences: EvidencesState;
 } | null> => {
     try {
-        // 1. Fetch User Profile (Source of Truth for Name/Sector)
-        const userDocRef = doc(db, 'users', uid);
-        const userSnap = await getDoc(userDocRef);
-        let userData = userSnap.exists() ? userSnap.data() : null;
-
-        // 2. Fetch Submission Parent Doc (Source of Truth for Result/Timestamp)
         const subDocRef = doc(db, COLLECTION_NAME, uid);
         const subSnap = await getDoc(subDocRef);
         
-        if (!subSnap.exists() && !userData) {
-            console.warn(`Nenhum dado encontrado para UID: ${uid}`);
-            return null;
-        }
+        // Try to fetch user doc for latest name update, but optional
+        let userData = null;
+        try {
+            const userSnap = await getDoc(doc(db, 'users', uid));
+            if(userSnap.exists()) userData = userSnap.data();
+        } catch (e) { /* ignore auth errors reading users */ }
+
+        if (!subSnap.exists() && !userData) return null;
 
         const subData = subSnap.exists() ? subSnap.data() : {};
 
-        // Construct Respondent
         const respondent: RespondentData = {
             uid: uid,
             name: userData?.nome || subData?.respondent?.name || 'Desconhecido',
@@ -417,7 +393,6 @@ export const fetchSubmissionDetails = async (uid: string): Promise<{
         const reconstructedAnswers: AnswersState = {};
         const reconstructedEvidences: EvidencesState = {};
 
-        // 3. Fetch Subcollection 'respostas' (Source of Truth for Answers)
         const q = query(collection(db, 'submissions', uid, 'respostas'));
         const snapshot = await getDocs(q);
 
@@ -425,12 +400,12 @@ export const fetchSubmissionDetails = async (uid: string): Promise<{
             const data = doc.data();
             const qId = doc.id;
 
-            // Reconstruct Answers
+            // FIX: Safe Enum Casting
             if (data.resposta) {
-                reconstructedAnswers[qId] = data.resposta as AnswerValue;
+                // Normalize string to match Enum keys if needed, or trust strict typing if autosave works
+                reconstructedAnswers[qId] = data.resposta as AnswerValue; 
             }
 
-            // Reconstruct Evidence object if it has file OR comment
             if (data.evidenciaPath || data.comentario) {
                 reconstructedEvidences[qId] = {
                     questionId: qId,
@@ -440,18 +415,18 @@ export const fetchSubmissionDetails = async (uid: string): Promise<{
                     fileType: data.evidenciaTipo,
                     fileSize: data.evidenciaTamanho,
                     storagePath: data.evidenciaPath,
+                    // Robust timestamp handling
                     timestamp: data.atualizadoEm?.toDate?.().toISOString() || new Date().toISOString()
                 };
             }
         });
 
-        // 4. Recalculate Result to ensure integrity with fetched answers
-        // (In case the summary in parent doc is outdated or missing)
+        // Always recalculate score based on fetched answers to ensure integrity
         const freshResult = calculateScore(reconstructedAnswers);
 
         return {
             respondent,
-            result: freshResult, // Using recalculated result
+            result: freshResult,
             answers: reconstructedAnswers,
             evidences: reconstructedEvidences
         };
@@ -462,7 +437,6 @@ export const fetchSubmissionDetails = async (uid: string): Promise<{
     }
 };
 
-// Helper to get full state (answers + evidences) for resuming session
 export const fetchRespondentProgress = async (uid: string): Promise<{ answers: AnswersState, evidences: EvidencesState }> => {
     const answers: AnswersState = {};
     const evidences: EvidencesState = {};
@@ -499,37 +473,11 @@ export const fetchRespondentProgress = async (uid: string): Promise<{ answers: A
     return { answers, evidences };
 };
 
-// --- UTILS FOR DELETE ---
-
-export const deleteSubmission = async (id: string): Promise<boolean> => {
-  try {
-    await deleteDoc(doc(db, COLLECTION_NAME, id));
-    return true;
-  } catch (error) {
-    console.error("Erro ao deletar:", error);
-    return false;
-  }
-};
-
-export const clearAllSubmissions = async (): Promise<boolean> => {
-  try {
-    const q = query(collection(db, COLLECTION_NAME));
-    const snapshot = await getDocs(q);
-    const batch = writeBatch(db);
-    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
-    await batch.commit();
-    return true;
-  } catch (error) {
-    return false;
-  }
-};
-
-// --- ACTION PLAN GENERATOR ---
+// --- ACTION PLAN GENERATOR (UNCHANGED BUT INCLUDED FOR COMPLETENESS) ---
 
 type ActionDefinition = { title: string; desc: string; priority: 'Alta' | 'Média' | 'Baixa' };
 type MaturityActions = Record<'CRITICAL' | 'REGULAR' | 'EXCELLENT', Record<TimeFrame, ActionDefinition>>;
 
-// Define unique actions for each category
 const CATEGORY_ACTIONS: Record<string, MaturityActions> = {
   'legislacao': {
     CRITICAL: {

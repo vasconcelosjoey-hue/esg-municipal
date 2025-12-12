@@ -1,7 +1,8 @@
 export enum AnswerValue {
   YES = 'YES',
   PARTIAL = 'PARTIAL',
-  NO = 'NO'
+  NO = 'NO',
+  NA = 'NA'
 }
 
 export enum MaturityLevel {
