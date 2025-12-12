@@ -7,7 +7,7 @@ import Dashboard from './components/Dashboard';
 import AdminDashboard from './components/AdminDashboard';
 import LogoutButton from './components/LogoutButton';
 import { auth } from './firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 
 enum View {
   HOME = 'HOME',
@@ -231,6 +231,7 @@ const App: React.FC = () => {
   
   const [adminPassword, setAdminPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [isAdminLoggingIn, setIsAdminLoggingIn] = useState(false); // State for admin loader
   const [isSaving, setIsSaving] = useState(false);
 
   // Persistence Check on Mount
@@ -252,13 +253,7 @@ const App: React.FC = () => {
     // 2. Check Auth Status (Persistence)
     const unsubscribe = onAuthStateChanged(auth, (user) => {
         if (user && view === View.HOME && !draft) {
-            // If user is already logged in, prompt to continue or start over? 
-            // For simplicity, we just set the respondentData uid but still show modal to confirm sector/name if missing
-            // Or ideally, fetch user profile. 
-            // Here we assume if they are logged in, they are "in".
-            // However, we need name/sector. 
-            // We'll let them login again to confirm details or simple auto-login logic if we had profile fetch.
-            // For this prompt, let's keep it simple: manual login triggers state.
+            // Logic to restore session if needed
         }
     });
     return () => unsubscribe();
@@ -335,12 +330,26 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAdminLogin = (e?: React.FormEvent) => {
+  const handleAdminLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    
     if (adminPassword === 'esgmogi') {
-      setView(View.ADMIN_DASHBOARD);
+      setIsAdminLoggingIn(true);
       setLoginError('');
-      setAdminPassword('');
+      
+      try {
+        // 1. Autenticação obrigatória antes de acessar o painel
+        await signInAnonymously(auth);
+        
+        // 2. Só muda a visualização se a autenticação tiver sucesso
+        setView(View.ADMIN_DASHBOARD);
+        setAdminPassword('');
+      } catch (error: any) {
+        console.error("Erro no login do Admin:", error);
+        setLoginError('Falha ao autenticar Admin no Firebase. Verifique sua conexão.');
+      } finally {
+        setIsAdminLoggingIn(false);
+      }
     } else {
       setLoginError('Senha incorreta.');
     }
@@ -597,13 +606,15 @@ const App: React.FC = () => {
                    placeholder="Digite a senha mestra"
                    value={adminPassword}
                    onChange={(e) => setAdminPassword(e.target.value)}
+                   disabled={isAdminLoggingIn}
                  />
                  {loginError && <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm font-bold text-center mb-4">{loginError}</div>}
                  <button
                    type="submit"
-                   className="w-full bg-gradient-to-r from-slate-900 to-slate-800 text-white py-4 rounded-xl font-bold hover:shadow-lg transform active:scale-95 transition-all"
+                   disabled={isAdminLoggingIn}
+                   className={`w-full bg-gradient-to-r from-slate-900 to-slate-800 text-white py-4 rounded-xl font-bold hover:shadow-lg transform active:scale-95 transition-all ${isAdminLoggingIn ? 'opacity-70 cursor-wait' : ''}`}
                  >
-                   Acessar Dashboard
+                   {isAdminLoggingIn ? 'Autenticando...' : 'Acessar Dashboard'}
                  </button>
                </form>
             </div>
