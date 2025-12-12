@@ -385,6 +385,7 @@ export const fetchAllSubmissions = async (): Promise<Submission[] | null> => {
   }
 };
 
+// Alias for compatibility if needed
 export const getSubmissions = fetchAllSubmissions;
 
 // --- 7. FETCH SUBMISSION DETAILS (ROBUST) ---
