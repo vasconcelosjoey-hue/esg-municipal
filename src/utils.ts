@@ -1,7 +1,7 @@
 import { AnswersState, AnswerValue, AssessmentResult, MaturityLevel, ActionPlanItem, CategoryData, Submission, RespondentData, TimeFrame, Evidence, EvidencesState } from './types';
 import { CATEGORIES } from './constants';
 import { db, storage, auth } from './firebase';
-import { collection, getDocs, query, orderBy, deleteDoc, doc, writeBatch, setDoc, serverTimestamp, getDoc, updateDoc, deleteField } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, deleteDoc, doc, writeBatch, setDoc, serverTimestamp, getDoc, updateDoc, deleteField, addDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 
@@ -55,7 +55,7 @@ export const logoutUser = async () => {
   window.location.href = "/";
 };
 
-// --- CORE CALCULATION LOGIC (FIXED) ---
+// --- CORE CALCULATION LOGIC ---
 
 export const calculateScore = (answers: AnswersState): AssessmentResult => {
   let totalScore = 0;
@@ -67,26 +67,23 @@ export const calculateScore = (answers: AnswersState): AssessmentResult => {
     let catMax = 0;
 
     cat.questions.forEach((q) => {
-      // FIX: Always increment maxScore for every question to avoid inflated scores on partial submissions.
-      // Unless we implement an explicit 'N/A' logic that subtracts from total.
-      // For now, NA acts as NO points, but counts towards total (penalizing lack of applicability if not strict).
-      // Or if you want NA to reduce the denominator:
       const answer = answers[q.id];
-      
-      if (answer === AnswerValue.NA) {
-          // If NA, we do NOT increment catMax (it doesn't apply)
-          return;
+
+      // Since NA is removed, all questions count towards maxScore
+      // Assuming questions not answered yet are treated as NO or simply reduce the potential score until answered.
+      // Here we increment max for every question in the category to reflect true potential.
+      // OR if we only count answered questions:
+      if (answer) {
+          catMax += 1;
+          if (answer === AnswerValue.YES) {
+            catScore += 1;
+          } else if (answer === AnswerValue.PARTIAL) {
+            catScore += 0.5;
+          }
+      } else {
+          // If we want to penalize unanswered questions, uncomment below:
+          // catMax += 1; 
       }
-
-      // Increment Max for YES, NO, PARTIAL, and UNDEFINED (Unanswered counts as 0/1)
-      catMax += 1;
-
-      if (answer === AnswerValue.YES) {
-        catScore += 1;
-      } else if (answer === AnswerValue.PARTIAL) {
-        catScore += 0.5;
-      } 
-      // NO or Undefined adds 0 to score
     });
 
     const percentage = catMax > 0 ? (catScore / catMax) * 100 : 0;
@@ -325,10 +322,8 @@ export const saveSubmission = async (
 
 // --- 6. FETCH SUBMISSIONS (ADMIN LIST - OPTIMIZED) ---
 
-export const fetchAllSubmissions = async (): Promise<Submission[]> => {
+export const fetchAllSubmissions = async (): Promise<Submission[] | null> => {
   try {
-    // FIX: Only fetch submissions collection. Do NOT fetch 'users' collection to avoid performance bottleneck.
-    // We rely on the denormalized 'respondent' data inside the submission document.
     const subQuery = query(collection(db, COLLECTION_NAME), orderBy("timestamp", "desc"));
     const subSnapshot = await getDocs(subQuery);
 
@@ -355,10 +350,11 @@ export const fetchAllSubmissions = async (): Promise<Submission[]> => {
     return submissions;
   } catch (err) {
     console.error("Erro ao buscar submissões:", err);
-    return [];
+    return null; // Return null on error to notify UI
   }
 };
 
+// Alias for compatibility if needed
 export const getSubmissions = fetchAllSubmissions;
 
 // --- 7. FETCH SUBMISSION DETAILS (ROBUST) ---

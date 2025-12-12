@@ -11,6 +11,7 @@ const AdminDashboard: React.FC = () => {
   const [detailedEvidences, setDetailedEvidences] = useState<EvidencesState>({});
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Use fetchAllSubmissions instead of getSubmissions to ensure joined data
@@ -18,18 +19,26 @@ const AdminDashboard: React.FC = () => {
     let mounted = true;
     const fetchData = async () => {
       setLoading(true);
+      setError('');
       try {
-        // 1. Busca lista completa já formatada como array
         const data = await fetchAllSubmissions();
-        
+
         if (mounted) {
-          // 2. Atribuição direta (O utilitário já retorna Submission[])
-          setSubmissions(data);
-          setLoading(false);
+            if (data === null) {
+              setError("Falha ao conectar ao banco de dados. Tente novamente em instantes.");
+              setLoading(false);
+              return;
+            }
+      
+            setSubmissions(data);
+            setLoading(false);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to fetch", error);
-        if (mounted) setLoading(false);
+        if (mounted) {
+            setError(error.message || "Erro desconhecido ao buscar dados.");
+            setLoading(false);
+        }
       }
     };
     fetchData();
@@ -142,6 +151,17 @@ const AdminDashboard: React.FC = () => {
 
   if (loading) return <div className="p-10 text-center flex flex-col items-center justify-center h-64"><div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div><span className="text-slate-500 font-bold">Carregando dados da nuvem...</span></div>;
   
+  if (error) {
+    return (
+        <div className="p-20 text-center flex flex-col items-center justify-center bg-red-50 rounded-3xl mx-4 my-8 shadow-sm border border-red-200">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h3 className="text-xl font-bold text-red-800">Erro de Conexão</h3>
+          <p className="text-red-600 mb-6">{error}</p>
+          <button onClick={handleRefresh} className="px-6 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors">Tentar Novamente</button>
+      </div>
+    );
+  }
+
   // --- DETAIL VIEW ---
   if (selectedSubmission) {
       return (
