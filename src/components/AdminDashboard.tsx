@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { fetchAllSubmissions, generateFullActionPlan, fetchSubmissionDetails } from '../utils';
+import { fetchAllSubmissions, generateFullActionPlan, fetchSubmissionDetails, deleteFullSubmission } from '../utils';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, PieChart, Pie, Legend, Tooltip, AreaChart, Area } from 'recharts';
 import { CATEGORIES } from '../constants';
 import { Submission, TimeFrame, ActionPlanItem, AssessmentResult, Evidence, EvidencesState } from '../types';
@@ -80,6 +80,19 @@ const AdminDashboard: React.FC = () => {
           console.error("Erro ao carregar evidências:", e);
           // Fallback: keep the list-based submission but with empty evidences
           setDetailedEvidences({});
+      }
+  };
+
+  const handleDelete = async (e: React.MouseEvent, sub: Submission) => {
+      e.stopPropagation();
+      if (window.confirm("Tem certeza que deseja excluir este diagnóstico? Esta ação não pode ser desfeita.")) {
+          try {
+              await deleteFullSubmission(sub.id);
+              // Update local state to remove the item instantly
+              setSubmissions(prev => prev.filter(item => item.id !== sub.id));
+          } catch (err: any) {
+              alert("Erro ao excluir: " + err.message);
+          }
       }
   };
 
@@ -395,15 +408,26 @@ const AdminDashboard: React.FC = () => {
                                  </div>
                              </td>
                              <td className="px-6 py-4 md:px-10 md:py-6 no-print">
-                                 <button 
-                                    onClick={() => handleSelectSubmission(sub)}
-                                    className="text-emerald-700 font-bold text-xs md:text-sm bg-emerald-50 border border-emerald-100 px-3 py-2 md:px-5 md:py-3 rounded-xl hover:bg-emerald-600 hover:text-white hover:shadow-lg transition-all active:scale-95 flex items-center gap-2 whitespace-nowrap"
-                                 >
-                                     Ver Detalhes
-                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 hidden md:block" viewBox="0 0 20 20" fill="currentColor">
-                                         <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                                     </svg>
-                                 </button>
+                                 <div className="flex items-center gap-2">
+                                     <button 
+                                        onClick={() => handleSelectSubmission(sub)}
+                                        className="text-emerald-700 font-bold text-xs md:text-sm bg-emerald-50 border border-emerald-100 px-3 py-2 md:px-5 md:py-3 rounded-xl hover:bg-emerald-600 hover:text-white hover:shadow-lg transition-all active:scale-95 flex items-center gap-2 whitespace-nowrap"
+                                     >
+                                         Ver Detalhes
+                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 hidden md:block" viewBox="0 0 20 20" fill="currentColor">
+                                             <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                                         </svg>
+                                     </button>
+                                     <button 
+                                        onClick={(e) => handleDelete(e, sub)}
+                                        className="text-red-500 font-bold text-xs md:text-sm bg-white border border-red-100 px-3 py-2 md:px-4 md:py-3 rounded-xl hover:bg-red-50 hover:text-red-700 hover:shadow-lg transition-all active:scale-95 flex items-center justify-center"
+                                        title="Excluir Diagnóstico"
+                                     >
+                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                         </svg>
+                                     </button>
+                                 </div>
                              </td>
                          </tr>
                      ))}

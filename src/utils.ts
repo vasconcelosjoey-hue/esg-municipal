@@ -320,6 +320,37 @@ export const saveSubmission = async (
   }
 };
 
+// --- 5.1 DELETE SUBMISSION (FULL) ---
+
+export const deleteFullSubmission = async (uid: string): Promise<boolean> => {
+    if (!auth.currentUser) throw new Error("Ação não permitida. Usuário não autenticado.");
+    
+    try {
+        // 1. Delete Sub-collection 'respostas' (Batch delete)
+        // Note: Firestore does not support deleting a collection directly. We must fetch and delete docs.
+        const subColRef = collection(db, 'submissions', uid, 'respostas');
+        const snapshot = await getDocs(subColRef);
+        
+        // Firestore batch limit is 500. Assuming typical questionnaire size < 500.
+        const batch = writeBatch(db);
+        
+        snapshot.docs.forEach((doc) => {
+            batch.delete(doc.ref);
+        });
+        
+        // Commit batch deletion of subcollection
+        await batch.commit();
+
+        // 2. Delete Parent Document
+        await deleteDoc(doc(db, 'submissions', uid));
+
+        return true;
+    } catch (error) {
+        console.error("Erro ao excluir submissão:", error);
+        throw error;
+    }
+};
+
 // --- 6. FETCH SUBMISSIONS (ADMIN LIST - OPTIMIZED) ---
 
 export const fetchAllSubmissions = async (): Promise<Submission[] | null> => {
@@ -354,7 +385,6 @@ export const fetchAllSubmissions = async (): Promise<Submission[] | null> => {
   }
 };
 
-// Alias for compatibility if needed
 export const getSubmissions = fetchAllSubmissions;
 
 // --- 7. FETCH SUBMISSION DETAILS (ROBUST) ---
