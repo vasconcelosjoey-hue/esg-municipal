@@ -220,6 +220,31 @@ const LeafIcon = ({ className }: { className: string }) => (
 );
 
 const App: React.FC = () => {
+  // --- KILL SWITCH DE SEGURANÇA ---
+  // Mude para false para reativar o site.
+  // Enquanto true, exibe apenas uma tela genérica de erro.
+  const MAINTENANCE_MODE = true; 
+
+  if (MAINTENANCE_MODE) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-4 font-sans text-slate-800">
+        <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-xl text-center border border-slate-200">
+          <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold mb-2">Sistema Indisponível</h1>
+          <p className="text-slate-500 mb-6">
+            Esta plataforma está temporariamente desativada para manutenção programada ou questões administrativas.
+          </p>
+          <div className="h-1 w-16 bg-slate-200 mx-auto rounded-full"></div>
+          <p className="text-xs text-slate-400 mt-6 uppercase tracking-widest font-bold">Error 503 - Service Unavailable</p>
+        </div>
+      </div>
+    );
+  }
+
   const [view, setView] = useState<View>(View.HOME);
   const [answers, setAnswers] = useState<AnswersState>({});
   const [evidences, setEvidences] = useState<EvidencesState>({});
@@ -332,6 +357,15 @@ const App: React.FC = () => {
 
   const handleAdminLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    
+    // --- BLOQUEIO DE LOGIN ADMIN (Manutenção) ---
+    // Mesmo que a tela principal esteja liberada, isso impede o login admin se necessário.
+    const ADMIN_LOCKED = true;
+
+    if (ADMIN_LOCKED) {
+        setLoginError('Acesso administrativo temporariamente bloqueado para manutenção.');
+        return;
+    }
     
     if (adminPassword === 'esgmogi') {
       setIsAdminLoggingIn(true);
